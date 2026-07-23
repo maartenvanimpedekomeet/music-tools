@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tab Editor - Music Tools</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+<style>
+  textarea#tabInput { font-family: "Courier New", monospace; white-space: pre; }
+</style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen p-6">
+  <div class="max-w-3xl mx-auto">
+    <a href="index.html" class="text-slate-400 hover:text-slate-200 text-sm">&larr; Music Tools</a>
+    <h1 class="text-2xl font-bold mt-2 mb-4">🎸 Tab Editor</h1>
+
+    <p class="text-slate-400 text-sm mb-3">
+      Schrijf een tab in het standaard 6-lijnen formaat. Elke lijn begint met de snaarnaam
+      (e, B, G, D, A, E van hoog naar laag), gevolgd door <code>|</code>, dan streepjes (<code>-</code>)
+      voor rust en cijfers voor de fret. Noten op dezelfde kolom klinken samen.
+    </p>
+
+    <textarea id="tabInput" rows="8" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+>e|--0---2---3---0---|
+B|--1---3-------1---|
+G|--0----------------|
+D|--------------------|
+A|--------------------|
+E|--------------------|</textarea>
+
+    <div class="flex flex-wrap items-center gap-3 mb-6">
+      <button id="playBtn" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg font-medium">▶ Afspelen</button>
+
+      <label class="text-sm text-slate-400 flex items-center gap-2">
+        Tempo (BPM)
+        <input id="bpmInput" type="number" value="100" min="20" max="300" class="w-20 bg-slate-800 border border-slate-700 rounded px-2 py-1">
+      </label>
+
+      <label class="text-sm text-slate-400 flex items-center gap-2">
+        Stappen per tel
+        <input id="stepsInput" type="number" value="4" min="1" max="8" class="w-16 bg-slate-800 border border-slate-700 rounded px-2 py-1">
+      </label>
+    </div>
+
+    <div class="bg-slate-800 border border-slate-700 rounded-lg p-4 mb-6">
+      <h2 class="font-semibold mb-3">Opgeslagen tabs</h2>
+      <div class="flex flex-wrap items-center gap-3 mb-3">
+        <input id="tabName" type="text" placeholder="Naam voor deze tab" class="flex-1 min-w-[10rem] bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm">
+        <button id="saveBtn" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg font-medium text-sm">Bewaren</button>
+      </div>
+      <ul id="savedList" class="flex flex-col gap-2 text-sm"></ul>
+      <p id="emptyMsg" class="text-slate-500 text-sm">Nog geen tabs bewaard.</p>
+    </div>
+
+    <p id="statusMsg" class="text-sm text-amber-400 min-h-[1.25rem]"></p>
+  </div>
+
+<script>
+const STORAGE_KEY = 'musicTools_tabs';
+
+const STRING_PITCH = { e: 'E4', B: 'B3', G: 'G3', D: 'D3', A: 'A2', E: 'E2' };
+const NOTE_ORDER = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+function transposeNote(baseNote, semitones) {
+  const m = baseNote.match(/^([A-G]#?)(\d)$/);
+  const name = m[1], octave = parseInt(m[2], 10);
+  let idx = NOTE_ORDER.indexOf(name) + semitones;
+  let oct = octave + Math.floor(idx / 12);
+  idx = ((idx % 12) + 12) % 12;
+  return NOTE_ORDER[idx] + oct;
+}
+
+function parseTab(text) {
+  const lines = text.split('\n').map(l => l.replace(/\r$/, ''));
+  const stringLines = [];
+  for (const line of lines) {
+    const m = line.match(/^\s*([eBGDAE])\|(.*)$/);
+    if (m && STRING_PITCH[m[1]] !== undefined) {
+      stringLines.push({ string: m[1], body: m[2] });
+    }
+  }
+  if (stringLines.length === 0) return [];
+
+  const events = []; // { col, note }
+  for (const { string, body } of stringLines) {
+    let i = 0;
+    while (i < body.length) {
+      const ch = body[i];
+      if (/[0-9]/.test(ch)) {
+        let numStr = ch;
+        let j = i + 1;
+        while (j < body.length && /[0-9]/.test(body[j])) {
+          numStr += body[j];
+          j++;
+        }
+        const fret = parseInt(numStr, 10);
+        const note = transposeNote(STRING_PITCH[string], fret);
+        events.push({ col: i, note });
+        i = j;
+      } else {
+        i++;
+      }
+    }
+  }
+  events.sort((a, b) => a.col - b.col);
+  return events;
+}
+
+let synth = null;
+
+document.getElementById('playBtn').addEventListener('click', async () => {
+  const statusMsg = document.getElementById('statusMsg');
+  await Tone.start();
+  if (!synth) synth = new Tone.PolySynth(Tone.Synth).toDestination();
+
+  const text = document.getElementById('tabInput').value;
+  const events = parseTab(text);
+  if (events.length === 0) {
+    statusMsg.textContent = 'Geen noten gevonden. Controleer het formaat van je tab.';
+    return;
+  }
+  statusMsg.textContent = '';
+
+  const bpm = parseFloat(document.getElementById('bpmInput').value) || 100;
+  const stepsPerBeat = parseFloat(document.getElementById('stepsInput').value) || 4;
+  const stepSeconds = 60 / bpm / stepsPerBeat;
+
+  const now = Tone.now() + 0.1;
+  for (const { col, note } of events) {
+    synth.triggerAttackRelease(note, stepSeconds * 0.9, now + col * stepSeconds);
+  }
+});
+
+function loadSaved() {
+  const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  const list = document.getElementById('savedList');
+  const emptyMsg = document.getElementById('emptyMsg');
+  list.innerHTML = '';
+  const names = Object.keys(data);
+  emptyMsg.style.display = names.length === 0 ? 'block' : 'none';
+
+  for (const name of names) {
+    const li = document.createElement('li');
+    li.className = 'flex items-center justify-between bg-slate-900 border border-slate-700 rounded px-3 py-2';
+
+    const label = document.createElement('span');
+    label.textContent = name;
+    li.appendChild(label);
+
+    const btnGroup = document.createElement('span');
+    btnGroup.className = 'flex gap-2';
+
+    const loadBtn = document.createElement('button');
+    loadBtn.textContent = 'Laden';
+    loadBtn.className = 'text-indigo-400 hover:text-indigo-300 text-xs font-medium';
+    loadBtn.addEventListener('click', () => {
+      document.getElementById('tabInput').value = data[name];
+      document.getElementById('tabName').value = name;
+    });
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.textContent = 'Verwijderen';
+    deleteBtn.className = 'text-red-400 hover:text-red-300 text-xs font-medium';
+    deleteBtn.addEventListener('click', () => {
+      delete data[name];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      loadSaved();
+    });
+
+    btnGroup.appendChild(loadBtn);
+    btnGroup.appendChild(deleteBtn);
+    li.appendChild(btnGroup);
+    list.appendChild(li);
+  }
+}
+
+document.getElementById('saveBtn').addEventListener('click', () => {
+  const name = document.getElementById('tabName').value.trim();
+  const statusMsg = document.getElementById('statusMsg');
+  if (!name) {
+    statusMsg.textContent = 'Geef eerst een naam op voor deze tab.';
+    return;
+  }
+  const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  data[name] = document.getElementById('tabInput').value;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  statusMsg.textContent = `Bewaard als "${name}".`;
+  loadSaved();
+});
+
+loadSaved();
+</script>
+</body>
+</html>

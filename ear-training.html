@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ear Training - Music Tools</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen p-6">
+  <div class="max-w-xl mx-auto">
+    <a href="index.html" class="text-slate-400 hover:text-slate-200 text-sm">&larr; Music Tools</a>
+    <h1 class="text-2xl font-bold mt-2 mb-4">🎧 Ear Training — Intervallen</h1>
+    <p class="text-slate-400 text-sm mb-6">
+      Er klinken twee noten na elkaar. Herken het interval tussen de eerste en de tweede noot.
+    </p>
+
+    <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <span class="text-slate-400 text-sm">Score: <span id="score" class="text-slate-100 font-semibold">0</span> / <span id="total">0</span></span>
+        <button id="replayBtn" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-sm">🔁 Herhaal</button>
+      </div>
+
+      <div id="feedback" class="min-h-[1.5rem] text-sm mb-4"></div>
+
+      <div id="options" class="grid grid-cols-2 gap-2 mb-4"></div>
+
+      <div class="flex justify-between items-center">
+        <label class="text-sm text-slate-400 flex items-center gap-2">
+          Richting
+          <select id="direction" class="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm">
+            <option value="up">Altijd omhoog</option>
+            <option value="both">Omhoog of omlaag</option>
+          </select>
+        </label>
+        <button id="nextBtn" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg font-medium">Volgende ▶</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+const INTERVALS = [
+  { name: 'Kleine secunde', semitones: 1 },
+  { name: 'Grote secunde', semitones: 2 },
+  { name: 'Kleine terts', semitones: 3 },
+  { name: 'Grote terts', semitones: 4 },
+  { name: 'Reine kwart', semitones: 5 },
+  { name: 'Tritonus', semitones: 6 },
+  { name: 'Reine kwint', semitones: 7 },
+  { name: 'Kleine sext', semitones: 8 },
+  { name: 'Grote sext', semitones: 9 },
+  { name: 'Kleine septiem', semitones: 10 },
+  { name: 'Grote septiem', semitones: 11 },
+  { name: 'Octaaf', semitones: 12 },
+];
+
+let synth = null;
+let current = null; // { rootMidi, intervalIdx, direction }
+let score = 0, total = 0;
+let answered = false;
+
+function midiToNote(midi) {
+  const names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const name = names[midi % 12];
+  const octave = Math.floor(midi / 12) - 1;
+  return name + octave;
+}
+
+function playInterval() {
+  if (!current) return;
+  const { rootMidi, semitones, direction } = current;
+  const secondMidi = rootMidi + (direction === 'down' ? -semitones : semitones);
+  const now = Tone.now() + 0.1;
+  synth.triggerAttackRelease(midiToNote(rootMidi), 0.6, now);
+  synth.triggerAttackRelease(midiToNote(secondMidi), 0.6, now + 0.8);
+}
+
+function newQuestion() {
+  answered = false;
+  document.getElementById('feedback').textContent = '';
+  const rootMidi = 55 + Math.floor(Math.random() * 13); // roughly G3 to G4
+  const idx = Math.floor(Math.random() * INTERVALS.length);
+  const dirSetting = document.getElementById('direction').value;
+  const direction = dirSetting === 'both' ? (Math.random() < 0.5 ? 'up' : 'down') : 'up';
+  current = { rootMidi, semitones: INTERVALS[idx].semitones, correctIdx: idx, direction };
+  renderOptions();
+  playInterval();
+}
+
+function renderOptions() {
+  const container = document.getElementById('options');
+  container.innerHTML = '';
+  INTERVALS.forEach((interval, idx) => {
+    const btn = document.createElement('button');
+    btn.textContent = interval.name;
+    btn.className = 'bg-slate-700 hover:bg-slate-600 rounded-lg py-2 text-sm text-left px-3';
+    btn.addEventListener('click', () => checkAnswer(idx, btn));
+    container.appendChild(btn);
+  });
+}
+
+function checkAnswer(idx, btn) {
+  if (answered || !current) return;
+  answered = true;
+  total++;
+  const feedback = document.getElementById('feedback');
+  if (idx === current.correctIdx) {
+    score++;
+    feedback.textContent = '✅ Correct!';
+    feedback.className = 'min-h-[1.5rem] text-sm mb-4 text-emerald-400';
+  } else {
+    feedback.textContent = `❌ Fout. Het juiste antwoord was: ${INTERVALS[current.correctIdx].name}.`;
+    feedback.className = 'min-h-[1.5rem] text-sm mb-4 text-red-400';
+  }
+  document.getElementById('score').textContent = score;
+  document.getElementById('total').textContent = total;
+}
+
+document.getElementById('replayBtn').addEventListener('click', async () => {
+  await Tone.start();
+  if (!synth) synth = new Tone.Synth().toDestination();
+  playInterval();
+});
+
+document.getElementById('nextBtn').addEventListener('click', async () => {
+  await Tone.start();
+  if (!synth) synth = new Tone.Synth().toDestination();
+  newQuestion();
+});
+
+renderOptions();
+</script>
+</body>
+</html>
