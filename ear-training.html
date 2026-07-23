@@ -8,7 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen p-6">
-  <div class="max-w-xl mx-auto">
+  <div class="max-w-3xl mx-auto">
     <a href="index.html" class="text-slate-400 hover:text-slate-200 text-sm">&larr; Music Tools</a>
     <h1 class="text-2xl font-bold mt-2 mb-4">🎧 Ear Training — Intervallen</h1>
     <p class="text-slate-400 text-sm mb-6">
@@ -23,9 +23,29 @@
 
       <div id="feedback" class="min-h-[1.5rem] text-sm mb-4"></div>
 
-      <div id="options" class="grid grid-cols-2 gap-2 mb-4"></div>
+      <div id="options" class="grid grid-cols-2 gap-2 mb-5"></div>
 
-      <div class="flex justify-between items-center">
+      <div class="mb-2">
+        <div class="flex justify-end mb-1">
+          <button id="leftHandBtn" class="hidden bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded-lg text-xs">↔ Linkshandig</button>
+        </div>
+        <div id="vizWrap" class="overflow-x-auto pb-2 bg-slate-950/40 rounded-lg pl-5 pr-5">
+          <div id="piano" class="relative" style="height:150px;"></div>
+          <div id="neck" class="relative" style="display:none;"></div>
+        </div>
+        <p class="text-xs text-slate-500 mt-1">🟠 eerste noot · 🔵 tweede noot &mdash; verschijnt na je antwoord. Klik zelf op een toets/fret om ze te beluisteren.</p>
+      </div>
+
+      <div class="flex flex-wrap gap-3 justify-between items-center mt-4">
+        <label class="text-sm text-slate-400 flex items-center gap-2">
+          Instrument
+          <select id="instrument" class="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm">
+            <option value="piano">Piano</option>
+            <option value="gitaar">Gitaar</option>
+            <option value="basgitaar">Basgitaar</option>
+          </select>
+        </label>
+
         <label class="text-sm text-slate-400 flex items-center gap-2">
           Richting
           <select id="direction" class="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm">
@@ -33,29 +53,68 @@
             <option value="both">Omhoog of omlaag</option>
           </select>
         </label>
-        <button id="nextBtn" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg font-medium">Volgende ▶</button>
+
+        <label class="text-sm text-slate-400 flex items-center gap-2">
+          <input type="checkbox" id="showRootToggle" class="accent-indigo-500">
+          Toon eerste noot
+        </label>
+
+        <button id="nextBtn" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg font-medium">▶ Start</button>
       </div>
     </div>
+
+    <p id="loadStatus" class="text-sm text-amber-400 min-h-[1.25rem]"></p>
   </div>
 
 <script>
+// Gestart eenvoudig: prime, terts, kwint, octaaf. Later uit te breiden met
+// bv. kleine/grote terts apart, secundes, septiemen, ...
 const INTERVALS = [
-  { name: 'Kleine secunde', semitones: 1 },
-  { name: 'Grote secunde', semitones: 2 },
-  { name: 'Kleine terts', semitones: 3 },
-  { name: 'Grote terts', semitones: 4 },
-  { name: 'Reine kwart', semitones: 5 },
-  { name: 'Tritonus', semitones: 6 },
-  { name: 'Reine kwint', semitones: 7 },
-  { name: 'Kleine sext', semitones: 8 },
-  { name: 'Grote sext', semitones: 9 },
-  { name: 'Kleine septiem', semitones: 10 },
-  { name: 'Grote septiem', semitones: 11 },
+  { name: 'Prime (dezelfde noot)', semitones: 0 },
+  { name: 'Terts (grote terts)', semitones: 4 },
+  { name: 'Kwint (reine kwint)', semitones: 7 },
   { name: 'Octaaf', semitones: 12 },
 ];
 
-let synth = null;
-let current = null; // { rootMidi, intervalIdx, direction }
+const PIANO_URLS = {
+  A0: 'A0.mp3', C1: 'C1.mp3', 'D#1': 'Ds1.mp3', 'F#1': 'Fs1.mp3', A1: 'A1.mp3',
+  C2: 'C2.mp3', 'D#2': 'Ds2.mp3', 'F#2': 'Fs2.mp3', A2: 'A2.mp3',
+  C3: 'C3.mp3', 'D#3': 'Ds3.mp3', 'F#3': 'Fs3.mp3', A3: 'A3.mp3',
+  C4: 'C4.mp3', 'D#4': 'Ds4.mp3', 'F#4': 'Fs4.mp3', A4: 'A4.mp3',
+  C5: 'C5.mp3', 'D#5': 'Ds5.mp3', 'F#5': 'Fs5.mp3', A5: 'A5.mp3',
+  C6: 'C6.mp3', 'D#6': 'Ds6.mp3', 'F#6': 'Fs6.mp3', A6: 'A6.mp3',
+};
+
+// Echte akoestische-gitaarsamples (CC-BY 3.0, nbrosowsky/tonejs-instruments) —
+// klinkt als een gitaar in plaats van een synthese-benadering.
+const GUITAR_URLS = {
+  'F#2': 'Fs2.mp3', 'F#3': 'Fs3.mp3', 'F#4': 'Fs4.mp3',
+  'G2': 'G2.mp3', 'G3': 'G3.mp3', 'G4': 'G4.mp3',
+  'G#2': 'Gs2.mp3', 'G#3': 'Gs3.mp3', 'G#4': 'Gs4.mp3',
+  'A2': 'A2.mp3', 'A3': 'A3.mp3', 'A4': 'A4.mp3',
+  'A#2': 'As2.mp3', 'A#3': 'As3.mp3', 'A#4': 'As4.mp3',
+  'B2': 'B2.mp3', 'B3': 'B3.mp3', 'B4': 'B4.mp3',
+  'C3': 'C3.mp3', 'C4': 'C4.mp3', 'C5': 'C5.mp3',
+  'C#3': 'Cs3.mp3', 'C#4': 'Cs4.mp3', 'C#5': 'Cs5.mp3',
+  'D2': 'D2.mp3', 'D3': 'D3.mp3', 'D4': 'D4.mp3', 'D5': 'D5.mp3',
+  'D#2': 'Ds2.mp3', 'D#3': 'Ds3.mp3', 'D#4': 'Ds4.mp3',
+  'E2': 'E2.mp3', 'E3': 'E3.mp3', 'E4': 'E4.mp3',
+  'F2': 'F2.mp3', 'F3': 'F3.mp3', 'F4': 'F4.mp3',
+};
+const GUITAR_BASE_URL = 'https://nbrosowsky.github.io/tonejs-instruments/samples/guitar-acoustic/';
+
+// Echte basgitaarsamples, zelfde bron als de gitaarsamples hierboven.
+const BASS_URLS = {
+  'E1': 'E1.mp3', 'G1': 'G1.mp3', 'A#1': 'As1.mp3',
+  'C#2': 'Cs2.mp3', 'E2': 'E2.mp3', 'G2': 'G2.mp3', 'A#2': 'As2.mp3',
+  'C#3': 'Cs3.mp3', 'E3': 'E3.mp3', 'G3': 'G3.mp3', 'A#3': 'As3.mp3',
+  'C#4': 'Cs4.mp3', 'E4': 'E4.mp3', 'G4': 'G4.mp3', 'A#4': 'As4.mp3',
+};
+const BASS_BASE_URL = 'https://nbrosowsky.github.io/tonejs-instruments/samples/bass-electric/';
+
+let currentInstrumentType = null;
+let currentInstrument = null;
+let current = null; // { rootMidi, semitones, correctIdx, direction, secondMidi }
 let score = 0, total = 0;
 let answered = false;
 
@@ -66,25 +125,104 @@ function midiToNote(midi) {
   return name + octave;
 }
 
-function playInterval() {
-  if (!current) return;
-  const { rootMidi, semitones, direction } = current;
-  const secondMidi = rootMidi + (direction === 'down' ? -semitones : semitones);
-  const now = Tone.now() + 0.1;
-  synth.triggerAttackRelease(midiToNote(rootMidi), 0.6, now);
-  synth.triggerAttackRelease(midiToNote(secondMidi), 0.6, now + 0.8);
+function selectedInstrument() {
+  return document.getElementById('instrument').value;
 }
 
-function newQuestion() {
+function createInstrument(type) {
+  if (type === 'piano') {
+    return new Tone.Sampler({
+      urls: PIANO_URLS,
+      release: 1,
+      baseUrl: 'https://tonejs.github.io/audio/salamander/',
+    }).toDestination();
+  }
+  if (type === 'gitaar') {
+    // Echte gitaarsamples i.p.v. synthese — klinkt gegarandeerd als een gitaar.
+    return new Tone.Sampler({
+      urls: GUITAR_URLS,
+      release: 0.6,
+      baseUrl: GUITAR_BASE_URL,
+    }).toDestination();
+  }
+  // basgitaar: echte samples i.p.v. synthese.
+  return new Tone.Sampler({
+    urls: BASS_URLS,
+    release: 0.6,
+    baseUrl: BASS_BASE_URL,
+  }).toDestination();
+}
+
+function triggerNote(instrument, midi, time) {
+  instrument.triggerAttackRelease(midiToNote(midi), 0.6, time);
+}
+
+// Root-notenbereik per instrument: bas moet vooral in het laagste register
+// spelen (open snaren E1-G2), piano/gitaar in een middenregister.
+const ROOT_RANGES = {
+  piano: [55, 67],
+  gitaar: [55, 67],
+  basgitaar: [28, 43],
+};
+
+// Bereik dat elk instrument daadwerkelijk kan tonen/spelen (grenzen van
+// piano-klavier resp. hals), gebruikt om te voorkomen dat een interval
+// buiten bereik valt (bv. onder de laagste basgitaarsnaar).
+const NECK_RANGE = {
+  piano: { min: 36, max: 84 },
+  gitaar: { min: 40, max: 78 },   // 14 frets, hoogste snaar (e) open=64
+  basgitaar: { min: 28, max: 57 }, // 14 frets, hoogste snaar (G) open=43
+};
+
+async function ensureInstrument() {
+  const type = selectedInstrument();
+  if (type === currentInstrumentType && currentInstrument) return currentInstrument;
+
+  if (currentInstrument) currentInstrument.dispose();
+  currentInstrumentType = type;
+  currentInstrument = createInstrument(type);
+
+  // Alle instrumenten zijn nu sample-based.
+  document.getElementById('loadStatus').textContent = 'Samples laden...';
+  await Tone.loaded();
+  document.getElementById('loadStatus').textContent = '';
+  return currentInstrument;
+}
+
+async function playInterval() {
+  if (!current) return;
+  const instrument = await ensureInstrument();
+  const now = Tone.now() + 0.1;
+  triggerNote(instrument, current.rootMidi, now);
+  triggerNote(instrument, current.secondMidi, now + 0.8);
+}
+
+async function newQuestion() {
   answered = false;
   document.getElementById('feedback').textContent = '';
-  const rootMidi = 55 + Math.floor(Math.random() * 13); // roughly G3 to G4
+  clearHighlights();
+
+  const type = selectedInstrument();
+  const [lo, hi] = ROOT_RANGES[type] || ROOT_RANGES.piano;
+  const rootMidi = lo + Math.floor(Math.random() * (hi - lo + 1));
   const idx = Math.floor(Math.random() * INTERVALS.length);
   const dirSetting = document.getElementById('direction').value;
-  const direction = dirSetting === 'both' ? (Math.random() < 0.5 ? 'up' : 'down') : 'up';
-  current = { rootMidi, semitones: INTERVALS[idx].semitones, correctIdx: idx, direction };
+  let direction = dirSetting === 'both' ? (Math.random() < 0.5 ? 'up' : 'down') : 'up';
+  const semitones = INTERVALS[idx].semitones;
+  let secondMidi = rootMidi + (direction === 'down' ? -semitones : semitones);
+
+  // Val terug op de andere richting als het interval buiten het bereik van
+  // het instrument zou vallen (bv. onder de laagste basgitaarsnaar).
+  const range = NECK_RANGE[type] || NECK_RANGE.piano;
+  if (secondMidi < range.min || secondMidi > range.max) {
+    direction = direction === 'down' ? 'up' : 'down';
+    secondMidi = rootMidi + (direction === 'down' ? -semitones : semitones);
+  }
+
+  current = { rootMidi, semitones, correctIdx: idx, direction, secondMidi };
   renderOptions();
-  playInterval();
+  await playInterval();
+  if (document.getElementById('showRootToggle').checked) showRootHint();
 }
 
 function renderOptions() {
@@ -114,20 +252,330 @@ function checkAnswer(idx, btn) {
   }
   document.getElementById('score').textContent = score;
   document.getElementById('total').textContent = total;
+  highlightInterval(current.rootMidi, current.secondMidi);
 }
 
 document.getElementById('replayBtn').addEventListener('click', async () => {
   await Tone.start();
-  if (!synth) synth = new Tone.Synth().toDestination();
-  playInterval();
+  await playInterval();
 });
 
 document.getElementById('nextBtn').addEventListener('click', async () => {
+  // Niet doorklikken naar een nieuwe vraag zolang de huidige nog niet
+  // beantwoord is (behalve de allereerste "Start"-klik).
+  if (current && !answered) return;
   await Tone.start();
-  if (!synth) synth = new Tone.Synth().toDestination();
-  newQuestion();
+  await newQuestion();
+  document.getElementById('nextBtn').textContent = 'Volgende ▶';
 });
 
+document.getElementById('instrument').addEventListener('change', () => {
+  updateVisualizer();
+  if (answered && current) highlightInterval(current.rootMidi, current.secondMidi);
+});
+
+// ---------- Highlighting (gedeeld tussen piano en griffen) ----------
+
+let highlightedEls = [];
+
+function getElementsForMidi(midi) {
+  if (selectedInstrument() === 'piano') {
+    const info = keyElements[midi];
+    return info ? [info.el] : [];
+  }
+  return fretElements[midi] || [];
+}
+
+function clearHighlights() {
+  highlightedEls.forEach(el => el.classList.remove('ring-4', 'ring-inset', 'ring-amber-400', 'ring-sky-400'));
+  highlightedEls = [];
+}
+
+function highlightInterval(rootMidi, secondMidi) {
+  clearHighlights();
+  const sameNote = rootMidi === secondMidi;
+  const rootEls = getElementsForMidi(rootMidi);
+  const secondEls = getElementsForMidi(secondMidi);
+  rootEls.forEach(el => el.classList.add('ring-4', 'ring-inset', 'ring-amber-400'));
+  secondEls.forEach(el => el.classList.add('ring-4', 'ring-inset', sameNote ? 'ring-amber-400' : 'ring-sky-400'));
+  highlightedEls = [...rootEls, ...secondEls];
+}
+
+// Optionele hint: alleen de eerste (root) noot alvast tonen, vóór het antwoord.
+function showRootHint() {
+  if (!current) return;
+  const rootEls = getElementsForMidi(current.rootMidi);
+  rootEls.forEach(el => el.classList.add('ring-4', 'ring-inset', 'ring-amber-400'));
+  highlightedEls = [...highlightedEls, ...rootEls];
+}
+
+document.getElementById('showRootToggle').addEventListener('change', (e) => {
+  if (answered) return;
+  if (e.target.checked && current) {
+    showRootHint();
+  } else if (!e.target.checked) {
+    clearHighlights();
+  }
+});
+
+let leftHanded = false;
+
+function updateVisualizer() {
+  const type = selectedInstrument();
+  const piano = document.getElementById('piano');
+  const neck = document.getElementById('neck');
+  const leftBtn = document.getElementById('leftHandBtn');
+  if (type === 'piano') {
+    piano.style.display = 'block';
+    neck.style.display = 'none';
+    leftBtn.classList.add('hidden');
+  } else {
+    piano.style.display = 'none';
+    neck.style.display = 'block';
+    leftBtn.classList.remove('hidden');
+    buildNeck(type);
+  }
+}
+
+document.getElementById('leftHandBtn').addEventListener('click', () => {
+  leftHanded = !leftHanded;
+  document.getElementById('leftHandBtn').classList.toggle('bg-indigo-600', leftHanded);
+  const type = selectedInstrument();
+  if (type !== 'piano') buildNeck(type);
+  if (answered && current) highlightInterval(current.rootMidi, current.secondMidi);
+});
+
+// ---------- Piano keyboard ----------
+
+const PIANO_START = 36; // C2
+const PIANO_END = 84;   // C6
+const WHITE_W = 34, WHITE_H = 150, BLACK_W = 20, BLACK_H = 92;
+
+// offset in "witte-toets-breedtes" vanaf het begin van de octaaf (C = 0)
+const KEY_LAYOUT = {
+  0:  { type: 'white', offset: 0 },    // C
+  1:  { type: 'black', offset: 0.68 }, // C#
+  2:  { type: 'white', offset: 1 },    // D
+  3:  { type: 'black', offset: 1.72 }, // D#
+  4:  { type: 'white', offset: 2 },    // E
+  5:  { type: 'white', offset: 3 },    // F
+  6:  { type: 'black', offset: 3.65 }, // F#
+  7:  { type: 'white', offset: 4 },    // G
+  8:  { type: 'black', offset: 4.7 },  // G#
+  9:  { type: 'white', offset: 5 },    // A
+  10: { type: 'black', offset: 5.75 }, // A#
+  11: { type: 'white', offset: 6 },    // B
+};
+
+const keyElements = {}; // midi -> { el, type }
+
+async function pressKey(midi) {
+  await Tone.start();
+  const instrument = await ensureInstrument();
+  triggerNote(instrument, midi, Tone.now());
+  flashKey(midi);
+}
+
+function flashKey(midi) {
+  const info = keyElements[midi];
+  if (!info) return;
+  const flashClass = info.type === 'white' ? 'bg-indigo-300' : 'bg-indigo-600';
+  info.el.classList.add(flashClass);
+  setTimeout(() => info.el.classList.remove(flashClass), 200);
+}
+
+function buildPiano() {
+  const piano = document.getElementById('piano');
+  piano.innerHTML = '';
+  let maxX = 0;
+
+  // witte toetsen eerst
+  for (let midi = PIANO_START; midi <= PIANO_END; midi++) {
+    const rel = midi - PIANO_START;
+    const octave = Math.floor(rel / 12);
+    const layout = KEY_LAYOUT[rel % 12];
+    if (layout.type !== 'white') continue;
+    const x = octave * 7 * WHITE_W + layout.offset * WHITE_W;
+    maxX = Math.max(maxX, x + WHITE_W);
+
+    const key = document.createElement('div');
+    key.className = 'absolute bg-slate-100 hover:bg-slate-300 border border-slate-400 rounded-b cursor-pointer transition-colors';
+    key.style.left = x + 'px';
+    key.style.top = '0px';
+    key.style.width = WHITE_W + 'px';
+    key.style.height = WHITE_H + 'px';
+    key.style.zIndex = 1;
+    key.addEventListener('click', () => pressKey(midi));
+
+    if (rel % 12 === 0) {
+      const label = document.createElement('span');
+      label.textContent = midiToNote(midi);
+      label.className = 'absolute bottom-1 left-1/2 -translate-x-1/2 text-[10px] text-slate-500 select-none pointer-events-none';
+      key.appendChild(label);
+    }
+
+    piano.appendChild(key);
+    keyElements[midi] = { el: key, type: 'white' };
+  }
+
+  // zwarte toetsen bovenop
+  for (let midi = PIANO_START; midi <= PIANO_END; midi++) {
+    const rel = midi - PIANO_START;
+    const octave = Math.floor(rel / 12);
+    const layout = KEY_LAYOUT[rel % 12];
+    if (layout.type !== 'black') continue;
+    const x = octave * 7 * WHITE_W + layout.offset * WHITE_W - BLACK_W / 2;
+
+    const key = document.createElement('div');
+    key.className = 'absolute bg-slate-900 hover:bg-slate-700 border border-slate-950 rounded-b cursor-pointer transition-colors';
+    key.style.left = x + 'px';
+    key.style.top = '0px';
+    key.style.width = BLACK_W + 'px';
+    key.style.height = BLACK_H + 'px';
+    key.style.zIndex = 2;
+    key.addEventListener('click', () => pressKey(midi));
+
+    piano.appendChild(key);
+    keyElements[midi] = { el: key, type: 'black' };
+  }
+
+  piano.style.width = maxX + 'px';
+}
+
+// ---------- Gitaar- / bashals ----------
+
+const NECKS = {
+  gitaar: {
+    frets: 14,
+    // van hoog naar laag, zoals de tab-notatie (e|B|G|D|A|E)
+    strings: [
+      { name: 'e', open: 64 },
+      { name: 'B', open: 59 },
+      { name: 'G', open: 55 },
+      { name: 'D', open: 50 },
+      { name: 'A', open: 45 },
+      { name: 'E', open: 40 },
+    ],
+  },
+  basgitaar: {
+    frets: 14,
+    strings: [
+      { name: 'G', open: 43 },
+      { name: 'D', open: 38 },
+      { name: 'A', open: 33 },
+      { name: 'E', open: 28 },
+    ],
+  },
+};
+
+const FRET_W = 34, ROW_H = 30, NUT_W = 14;
+const MARKER_FRETS = [3, 5, 7, 9, 12];
+
+let fretElements = {}; // midi -> [el, ...]
+
+async function pressFret(midi, cell) {
+  await Tone.start();
+  const instrument = await ensureInstrument();
+  triggerNote(instrument, midi, Tone.now());
+  cell.classList.add('bg-indigo-400');
+  setTimeout(() => cell.classList.remove('bg-indigo-400'), 200);
+}
+
+function buildNeck(type) {
+  const config = NECKS[type];
+  const neck = document.getElementById('neck');
+  neck.innerHTML = '';
+  fretElements = {};
+
+  const numStrings = config.strings.length;
+  const width = NUT_W + (config.frets + 1) * FRET_W;
+  const height = numStrings * ROW_H + 24;
+  neck.style.width = width + 'px';
+  neck.style.height = height + 'px';
+
+  const mirror = x => (leftHanded ? width - x : x);
+
+  // fret-inlays (positiestippen)
+  MARKER_FRETS.filter(f => f <= config.frets).forEach(f => {
+    const x = mirror(NUT_W + (f - 0.5) * FRET_W);
+    const isDouble = f % 12 === 0;
+    const dotTops = isDouble ? [height - 30, height - 16] : [height - 16];
+    dotTops.forEach(top => {
+      const dot = document.createElement('div');
+      dot.className = 'absolute bg-slate-600 rounded-full';
+      dot.style.width = '7px';
+      dot.style.height = '7px';
+      dot.style.left = (x - 3.5) + 'px';
+      dot.style.top = top + 'px';
+      neck.appendChild(dot);
+    });
+  });
+
+  // fretlijnen (verticaal)
+  for (let f = 1; f <= config.frets; f++) {
+    const line = document.createElement('div');
+    line.className = 'absolute bg-slate-500';
+    line.style.left = mirror(NUT_W + f * FRET_W) + 'px';
+    line.style.top = '6px';
+    line.style.width = '2px';
+    line.style.height = (numStrings * ROW_H) + 'px';
+    neck.appendChild(line);
+  }
+
+  // kam (nut) — links, of rechts bij linkshandige weergave
+  const nut = document.createElement('div');
+  nut.className = 'absolute bg-slate-200';
+  nut.style.left = (leftHanded ? width - 4 : 0) + 'px';
+  nut.style.top = '6px';
+  nut.style.width = '4px';
+  nut.style.height = (numStrings * ROW_H) + 'px';
+  neck.appendChild(nut);
+
+  config.strings.forEach((str, rowIdx) => {
+    const y = 10 + rowIdx * ROW_H;
+
+    const line = document.createElement('div');
+    line.className = 'absolute bg-slate-400';
+    line.style.left = '0px';
+    line.style.top = (y - 1) + 'px';
+    line.style.width = width + 'px';
+    line.style.height = '2px';
+    neck.appendChild(line);
+
+    const label = document.createElement('span');
+    label.textContent = str.name;
+    label.className = 'absolute text-xs text-slate-400 select-none';
+    label.style.left = (leftHanded ? width + 4 : -14) + 'px';
+    label.style.top = (y - 8) + 'px';
+    neck.appendChild(label);
+
+    for (let fret = 0; fret <= config.frets; fret++) {
+      const midi = str.open + fret;
+      const x = mirror(fret === 0 ? NUT_W / 2 : NUT_W + (fret - 0.5) * FRET_W);
+
+      const cell = document.createElement('button');
+      cell.className = 'absolute rounded-full border border-slate-600/60 hover:bg-slate-500/40 transition-colors';
+      cell.style.width = '22px';
+      cell.style.height = '22px';
+      cell.style.left = (x - 11) + 'px';
+      cell.style.top = (y - 11) + 'px';
+      cell.style.zIndex = 3;
+      cell.addEventListener('click', () => pressFret(midi, cell));
+      neck.appendChild(cell);
+
+      if (!fretElements[midi]) fretElements[midi] = [];
+      fretElements[midi].push(cell);
+    }
+  });
+
+  // Toon meteen de kam (fret 0) i.p.v. dat je manueel moet scrollen —
+  // die staat links in de normale stand, rechts bij linkshandig.
+  const vizWrap = document.getElementById('vizWrap');
+  vizWrap.scrollLeft = leftHanded ? vizWrap.scrollWidth : 0;
+}
+
+buildPiano();
+updateVisualizer();
 renderOptions();
 </script>
 </body>

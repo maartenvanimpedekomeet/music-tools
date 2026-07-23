@@ -7,140 +7,597 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 <style>
-  textarea#tabInput { font-family: "Courier New", monospace; white-space: pre; }
+  .cell, .tuning, #preview, #grid { font-family: "Courier New", monospace; }
 </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen p-6">
-  <div class="max-w-3xl mx-auto">
+  <div class="max-w-4xl mx-auto">
     <a href="index.html" class="text-slate-400 hover:text-slate-200 text-sm">&larr; Music Tools</a>
     <h1 class="text-2xl font-bold mt-2 mb-4">🎸 Tab Editor</h1>
 
-    <p class="text-slate-400 text-sm mb-3">
-      Schrijf een tab in het standaard 6-lijnen formaat. Elke lijn begint met de snaarnaam
-      (e, B, G, D, A, E van hoog naar laag), gevolgd door <code>|</code>, dan streepjes (<code>-</code>)
-      voor rust en cijfers voor de fret. Noten op dezelfde kolom klinken samen.
-    </p>
-
-    <textarea id="tabInput" rows="8" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
->e|--0---2---3---0---|
-B|--1---3-------1---|
-G|--0----------------|
-D|--------------------|
-A|--------------------|
-E|--------------------|</textarea>
-
-    <div class="flex flex-wrap items-center gap-3 mb-6">
-      <button id="playBtn" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg font-medium">▶ Afspelen</button>
-
-      <label class="text-sm text-slate-400 flex items-center gap-2">
-        Tempo (BPM)
-        <input id="bpmInput" type="number" value="100" min="20" max="300" class="w-20 bg-slate-800 border border-slate-700 rounded px-2 py-1">
-      </label>
-
-      <label class="text-sm text-slate-400 flex items-center gap-2">
-        Stappen per tel
-        <input id="stepsInput" type="number" value="4" min="1" max="8" class="w-16 bg-slate-800 border border-slate-700 rounded px-2 py-1">
-      </label>
+    <div class="mb-4">
+      <input id="projectTitle" value="Nieuw nummer" class="w-full bg-transparent text-xl font-bold text-slate-100 border-b border-transparent hover:border-slate-700 focus:border-indigo-500 focus:outline-none px-1 py-1 mb-1">
+      <input id="projectSubtitle" placeholder="Ondertitel (bv. artiest, capo, ...)" class="w-full bg-transparent text-sm text-slate-400 border-b border-transparent hover:border-slate-700 focus:border-indigo-500 focus:outline-none px-1 py-1">
     </div>
 
-    <div class="bg-slate-800 border border-slate-700 rounded-lg p-4 mb-6">
-      <h2 class="font-semibold mb-3">Opgeslagen tabs</h2>
+    <div class="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-4">
+      <div class="flex flex-wrap items-center gap-2 mb-2">
+        <input id="sectionTitle" value="Nieuwe sectie" placeholder="Sectienaam (bv. Intro, Vers, Refrein)" class="bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm flex-1 min-w-[10rem]">
+
+        <select id="preset" class="bg-slate-900 border border-slate-700 rounded px-2 py-2 text-sm">
+          <option value="guitar">Standaard gitaar</option>
+          <option value="dropd">Drop D</option>
+          <option value="dadgad">DADGAD</option>
+          <option value="bass">Basgitaar</option>
+        </select>
+
+        <select id="instrument" class="bg-slate-900 border border-slate-700 rounded px-2 py-2 text-sm">
+          <option value="gitaar">Gitaar</option>
+          <option value="piano">Piano</option>
+          <option value="basgitaar">Basgitaar</option>
+        </select>
+      </div>
+
+      <div class="flex flex-wrap gap-2">
+        <button id="addSectionBtn" class="bg-indigo-600 hover:bg-indigo-500 px-3 py-2 rounded-lg text-sm font-medium">+ Sectie toevoegen</button>
+        <button id="saveSectionBtn" class="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-lg text-sm font-medium">Sectie bewaren</button>
+        <button id="clearBtn" class="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-lg text-sm font-medium">Wissen</button>
+        <button id="addStringBtn" class="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-lg text-sm font-medium">+ Snaar</button>
+        <button id="removeStringBtn" class="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-lg text-sm font-medium">− Snaar</button>
+        <button id="addColumnsBtn" class="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-lg text-sm font-medium">+ Vakjes</button>
+        <button id="removeColumnsBtn" class="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-lg text-sm font-medium">− Vakjes</button>
+        <button id="exportBtn" class="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-lg text-sm font-medium">Export TXT</button>
+        <span class="flex-1"></span>
+        <button id="playBtn" class="bg-emerald-600 hover:bg-emerald-500 px-3 py-2 rounded-lg text-sm font-medium">▶ Afspelen</button>
+        <label class="text-xs text-slate-400 flex items-center gap-1">
+          BPM <input id="bpmInput" type="number" value="100" min="20" max="300" class="w-16 bg-slate-900 border border-slate-700 rounded px-2 py-1">
+        </label>
+      </div>
+    </div>
+
+    <p class="text-xs text-slate-500 mb-2">
+      Klik op een vakje en typ het fretnummer (0-99). Backspace/Delete wist het vakje. Pijltjestoetsen verplaatsen de cursor.
+      Klik op een snaarnaam om de toonhoogte aan te passen (bv. "E2", "D#3"). Gebruik "+ Vakjes" voor langere riffs.
+      Klik op "✏️ Bewerk" bij een bewaarde sectie hieronder om ze opnieuw te openen in de editor.
+    </p>
+
+    <div id="gridWrap" class="overflow-x-auto bg-slate-950/40 border border-slate-700 rounded-xl p-4 mb-6">
+      <div id="grid"></div>
+    </div>
+
+    <div class="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
+      <h2 class="font-semibold mb-3">Secties in dit nummer</h2>
+      <div id="preview" class="text-sm whitespace-pre overflow-x-auto"></div>
+      <p id="emptySections" class="text-slate-500 text-sm">Nog geen secties bewaard in dit nummer.</p>
+    </div>
+
+    <div class="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
+      <h2 class="font-semibold mb-3">Bewaarde nummers</h2>
       <div class="flex flex-wrap items-center gap-3 mb-3">
-        <input id="tabName" type="text" placeholder="Naam voor deze tab" class="flex-1 min-w-[10rem] bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm">
-        <button id="saveBtn" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg font-medium text-sm">Bewaren</button>
+        <input id="projectName" type="text" placeholder="Naam voor dit nummer" class="flex-1 min-w-[10rem] bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm">
+        <button id="saveProjectBtn" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg font-medium text-sm">Bewaren</button>
       </div>
       <ul id="savedList" class="flex flex-col gap-2 text-sm"></ul>
-      <p id="emptyMsg" class="text-slate-500 text-sm">Nog geen tabs bewaard.</p>
+      <p id="emptyMsg" class="text-slate-500 text-sm">Nog geen nummers bewaard.</p>
     </div>
 
     <p id="statusMsg" class="text-sm text-amber-400 min-h-[1.25rem]"></p>
   </div>
 
 <script>
-const STORAGE_KEY = 'musicTools_tabs';
+const STORAGE_KEY = 'musicTools_tabProjects';
+const CONFIG = { columns: 24, emptyCell: '-' };
 
-const STRING_PITCH = { e: 'E4', B: 'B3', G: 'G3', D: 'D3', A: 'A2', E: 'E2' };
-const NOTE_ORDER = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const PRESETS = {
+  guitar: ['E4', 'B3', 'G3', 'D3', 'A2', 'E2'],
+  dropd:  ['E4', 'B3', 'G3', 'D3', 'A2', 'D2'],
+  dadgad: ['D4', 'A3', 'G3', 'D3', 'A2', 'D2'],
+  bass:   ['G2', 'D2', 'A1', 'E1'],
+};
 
-function transposeNote(baseNote, semitones) {
-  const m = baseNote.match(/^([A-G]#?)(\d)$/);
-  const name = m[1], octave = parseInt(m[2], 10);
-  let idx = NOTE_ORDER.indexOf(name) + semitones;
-  let oct = octave + Math.floor(idx / 12);
-  idx = ((idx % 12) + 12) % 12;
-  return NOTE_ORDER[idx] + oct;
+const state = {
+  strings: [...PRESETS.guitar],
+  tab: [],
+  sections: [],
+  selectedSection: -1,
+  cursor: { row: 0, column: 0 },
+};
+
+function createEmptyRow() {
+  return Array(CONFIG.columns).fill(CONFIG.emptyCell);
+}
+function createTab() {
+  return state.strings.map(() => createEmptyRow());
+}
+function cloneTab(tab) {
+  return tab.map(row => [...row]);
+}
+function hasNotes(tab) {
+  return tab.some(row => row.some(cell => cell !== CONFIG.emptyCell));
+}
+function currentSection() {
+  return {
+    title: document.getElementById('sectionTitle').value || 'Naamloos',
+    strings: [...state.strings],
+    data: cloneTab(state.tab),
+  };
 }
 
-function parseTab(text) {
-  const lines = text.split('\n').map(l => l.replace(/\r$/, ''));
-  const stringLines = [];
-  for (const line of lines) {
-    const m = line.match(/^\s*([eBGDAE])\|(.*)$/);
-    if (m && STRING_PITCH[m[1]] !== undefined) {
-      stringLines.push({ string: m[1], body: m[2] });
-    }
-  }
-  if (stringLines.length === 0) return [];
+// ---------- Toonhoogte ----------
 
-  const events = []; // { col, note }
-  for (const { string, body } of stringLines) {
-    let i = 0;
-    while (i < body.length) {
-      const ch = body[i];
-      if (/[0-9]/.test(ch)) {
-        let numStr = ch;
-        let j = i + 1;
-        while (j < body.length && /[0-9]/.test(body[j])) {
-          numStr += body[j];
-          j++;
-        }
-        const fret = parseInt(numStr, 10);
-        const note = transposeNote(STRING_PITCH[string], fret);
-        events.push({ col: i, note });
-        i = j;
-      } else {
-        i++;
-      }
-    }
-  }
-  events.sort((a, b) => a.col - b.col);
-  return events;
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const NOTE_TO_SEMITONE = {
+  C:0, 'C#':1, Db:1, D:2, 'D#':3, Eb:3, E:4, F:5, 'F#':6, Gb:6,
+  G:7, 'G#':8, Ab:8, A:9, 'A#':10, Bb:10, B:11,
+};
+
+function parseNoteName(text) {
+  const m = String(text).trim().match(/^([A-Ga-g])([#b]?)(-?\d+)$/);
+  if (!m) return null;
+  const key = m[1].toUpperCase() + m[2];
+  const semitone = NOTE_TO_SEMITONE[key];
+  if (semitone === undefined) return null;
+  const octave = parseInt(m[3], 10);
+  return (octave + 1) * 12 + semitone;
 }
 
-let synth = null;
+function midiToNote(midi) {
+  const name = NOTE_NAMES[((midi % 12) + 12) % 12];
+  const octave = Math.floor(midi / 12) - 1;
+  return name + octave;
+}
 
-document.getElementById('playBtn').addEventListener('click', async () => {
-  const statusMsg = document.getElementById('statusMsg');
-  await Tone.start();
-  if (!synth) synth = new Tone.PolySynth(Tone.Synth).toDestination();
+// ---------- Editor grid ----------
 
-  const text = document.getElementById('tabInput').value;
-  const events = parseTab(text);
-  if (events.length === 0) {
-    statusMsg.textContent = 'Geen noten gevonden. Controleer het formaat van je tab.';
+const cellMap = [];
+let activeCell = null;
+
+function buildEditor() {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  cellMap.length = 0;
+
+  state.tab.forEach((row, r) => {
+    const line = document.createElement('div');
+    line.className = 'flex items-center mb-1';
+
+    const tuning = document.createElement('input');
+    tuning.className = 'w-14 mr-2 text-center font-bold text-sm bg-slate-800 border border-slate-700 rounded px-1 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500';
+    tuning.value = state.strings[r];
+    tuning.addEventListener('change', (e) => {
+      state.strings[r] = e.target.value;
+    });
+    line.appendChild(tuning);
+
+    cellMap[r] = [];
+
+    row.forEach((value, x) => {
+      const cell = document.createElement('div');
+      cell.className = 'cell w-8 h-8 mr-[3px] flex items-center justify-center bg-slate-800 border border-slate-700 rounded text-sm font-bold cursor-pointer select-none hover:bg-slate-700';
+      cell.textContent = value;
+      cell.dataset.row = r;
+      cell.dataset.column = x;
+      cell.tabIndex = 0;
+      cell.setAttribute('role', 'button');
+      cell.setAttribute('aria-label', `Bewerk noot op snaar ${r + 1}, positie ${x + 1}`);
+      cellMap[r][x] = cell;
+      line.appendChild(cell);
+    });
+
+    grid.appendChild(line);
+  });
+
+  setupCellEvents();
+  updateCursor();
+}
+
+function setupCellEvents() {
+  const grid = document.getElementById('grid');
+  grid.onclick = (e) => {
+    const cell = e.target.closest('.cell');
+    if (!cell) return;
+    state.cursor.row = Number(cell.dataset.row);
+    state.cursor.column = Number(cell.dataset.column);
+    updateCursor();
+  };
+}
+
+function updateCell(row, column) {
+  const cell = cellMap[row]?.[column];
+  if (!cell) return;
+  cell.textContent = state.tab[row][column];
+}
+
+function updateCursor() {
+  if (activeCell) {
+    activeCell.classList.remove('bg-emerald-600', 'text-white', 'border-emerald-500');
+    activeCell.classList.add('bg-slate-800');
+  }
+  activeCell = cellMap[state.cursor.row]?.[state.cursor.column] ?? null;
+  if (activeCell) {
+    activeCell.classList.remove('bg-slate-800');
+    activeCell.classList.add('bg-emerald-600', 'text-white', 'border-emerald-500');
+  }
+}
+
+function handleKeyboard(e) {
+  if (e.target.tagName === 'INPUT') return;
+
+  const cursor = state.cursor;
+  const movement = {
+    ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0],
+  };
+
+  if (movement[e.key]) e.preventDefault();
+
+  if (/^[0-9]$/.test(e.key)) {
+    const old = state.tab[cursor.row][cursor.column];
+    const base = old === CONFIG.emptyCell ? '' : old;
+    const nextValue = `${base}${e.key}`.slice(0, 2);
+    state.tab[cursor.row][cursor.column] = nextValue;
+    updateCell(cursor.row, cursor.column);
     return;
   }
-  statusMsg.textContent = '';
 
-  const bpm = parseFloat(document.getElementById('bpmInput').value) || 100;
-  const stepsPerBeat = parseFloat(document.getElementById('stepsInput').value) || 4;
-  const stepSeconds = 60 / bpm / stepsPerBeat;
-
-  const now = Tone.now() + 0.1;
-  for (const { col, note } of events) {
-    synth.triggerAttackRelease(note, stepSeconds * 0.9, now + col * stepSeconds);
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    state.tab[cursor.row][cursor.column] = CONFIG.emptyCell;
+    updateCell(cursor.row, cursor.column);
+    return;
   }
+
+  if (movement[e.key]) {
+    const [dr, dc] = movement[e.key];
+    cursor.row = Math.max(0, Math.min(state.strings.length - 1, cursor.row + dr));
+    const rowLength = state.tab[cursor.row]?.length || CONFIG.columns;
+    cursor.column = Math.max(0, Math.min(rowLength - 1, cursor.column + dc));
+    updateCursor();
+  }
+}
+document.addEventListener('keydown', handleKeyboard);
+
+// ---------- Secties & preview ----------
+
+function formatTab(section) {
+  let output = `${section.title}\n\n`;
+  const widths = Array(CONFIG.columns).fill(1);
+
+  section.data.forEach(row => {
+    row.forEach((note, i) => { widths[i] = Math.max(widths[i], note.length); });
+  });
+
+  section.strings.forEach((tuning, r) => {
+    output += `${tuning}|`;
+    section.data[r].forEach((note, col) => {
+      output += note.padEnd(widths[col], '-');
+      if (col < CONFIG.columns - 1) output += '-';
+    });
+    output += '|\n';
+  });
+
+  return output + '\n';
+}
+
+function renderPreview() {
+  const preview = document.getElementById('preview');
+  const emptyMsg = document.getElementById('emptySections');
+  preview.innerHTML = '';
+
+  const saved = state.sections.filter(s => hasNotes(s.data));
+  emptyMsg.style.display = saved.length === 0 ? 'block' : 'none';
+
+  saved.forEach(section => {
+    const index = state.sections.indexOf(section);
+    const isEditing = index === state.selectedSection;
+
+    const header = document.createElement('div');
+    header.className = 'flex items-center gap-2 mt-3 first:mt-0 px-2 py-1 -mx-2 rounded' + (isEditing ? ' bg-slate-700/60' : '');
+
+    const title = document.createElement('span');
+    title.textContent = section.title;
+    title.className = 'text-indigo-400 font-bold cursor-pointer hover:underline';
+    title.addEventListener('click', () => loadSection(index));
+    header.appendChild(title);
+
+    if (isEditing) {
+      const badge = document.createElement('span');
+      badge.textContent = '(wordt bewerkt)';
+      badge.className = 'text-xs text-slate-400';
+      header.appendChild(badge);
+    }
+
+    const editBtn = document.createElement('button');
+    editBtn.textContent = '✏️ Bewerk';
+    editBtn.className = 'text-indigo-400 hover:text-indigo-300 text-xs font-medium';
+    editBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      loadSection(index);
+      document.getElementById('statusMsg').textContent = `"${section.title}" geladen om te bewerken.`;
+    });
+    header.appendChild(editBtn);
+
+    const playBtn = document.createElement('button');
+    playBtn.textContent = '▶';
+    playBtn.className = 'text-emerald-400 hover:text-emerald-300 text-xs';
+    playBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await Tone.start();
+      await playTabData(section.data, section.strings);
+    });
+    header.appendChild(playBtn);
+
+    const del = document.createElement('button');
+    del.textContent = '×';
+    del.className = 'text-red-400 hover:text-red-300 text-sm';
+    del.setAttribute('aria-label', `Verwijder ${section.title}`);
+    del.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteSection(index);
+    });
+    header.appendChild(del);
+
+    preview.appendChild(header);
+    const pre = document.createElement('div');
+    pre.textContent = formatTab(section);
+    preview.appendChild(pre);
+  });
+}
+
+function deleteSection(index) {
+  state.sections.splice(index, 1);
+  if (state.selectedSection === index) state.selectedSection = -1;
+  else if (state.selectedSection > index) state.selectedSection -= 1;
+  renderPreview();
+}
+
+function loadSection(index) {
+  const section = state.sections[index];
+  state.selectedSection = index;
+  state.strings = [...section.strings];
+  state.tab = section.data.map(row => [...row]);
+  state.cursor = { row: 0, column: 0 };
+  CONFIG.columns = state.tab[0]?.length || CONFIG.columns;
+  document.getElementById('sectionTitle').value = section.title;
+  buildEditor();
+  renderPreview();
+}
+
+// ---------- Knoppen ----------
+
+document.getElementById('addSectionBtn').addEventListener('click', () => {
+  const section = currentSection();
+  if (hasNotes(section.data)) state.sections.push(section);
+
+  state.tab = createTab();
+  state.selectedSection = -1;
+  document.getElementById('sectionTitle').value = 'Nieuwe sectie';
+
+  buildEditor();
+  renderPreview();
 });
 
-function loadSaved() {
-  const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+document.getElementById('saveSectionBtn').addEventListener('click', () => {
+  if (state.selectedSection < 0) {
+    document.getElementById('statusMsg').textContent = 'Klik eerst op een sectienaam hieronder om ze te selecteren voor bewerken.';
+    return;
+  }
+  state.sections[state.selectedSection] = currentSection();
+  document.getElementById('statusMsg').textContent = 'Sectie bijgewerkt.';
+  renderPreview();
+});
+
+document.getElementById('clearBtn').addEventListener('click', () => {
+  state.tab = createTab();
+  state.selectedSection = -1;
+  state.cursor = { row: 0, column: 0 };
+  document.getElementById('sectionTitle').value = 'Nieuwe sectie';
+  buildEditor();
+  renderPreview();
+});
+
+document.getElementById('addStringBtn').addEventListener('click', () => {
+  state.strings.push('E2');
+  state.tab.push(createEmptyRow());
+  buildEditor();
+});
+
+document.getElementById('removeStringBtn').addEventListener('click', () => {
+  if (state.strings.length <= 1) return;
+  state.strings.pop();
+  state.tab.pop();
+  state.cursor.row = Math.min(state.cursor.row, state.strings.length - 1);
+  buildEditor();
+});
+
+const COLUMN_STEP = 8;
+
+document.getElementById('addColumnsBtn').addEventListener('click', () => {
+  state.tab.forEach(row => {
+    for (let i = 0; i < COLUMN_STEP; i++) row.push(CONFIG.emptyCell);
+  });
+  CONFIG.columns = state.tab[0]?.length || CONFIG.columns;
+  buildEditor();
+});
+
+document.getElementById('removeColumnsBtn').addEventListener('click', () => {
+  const len = state.tab[0]?.length || CONFIG.columns;
+  if (len <= COLUMN_STEP) return;
+  const from = len - COLUMN_STEP;
+
+  const wouldRemoveNotes = state.tab.some(row => row.slice(from).some(c => c !== CONFIG.emptyCell));
+  if (wouldRemoveNotes) {
+    document.getElementById('statusMsg').textContent = 'Kan geen vakjes verwijderen: er staan nog noten in de laatste vakjes.';
+    return;
+  }
+
+  state.tab.forEach(row => row.splice(from, COLUMN_STEP));
+  CONFIG.columns = state.tab[0].length;
+  if (state.cursor.column >= CONFIG.columns) state.cursor.column = CONFIG.columns - 1;
+  buildEditor();
+});
+
+document.getElementById('preset').addEventListener('change', (e) => {
+  const preset = PRESETS[e.target.value];
+  if (!preset) return;
+  state.strings = [...preset];
+  state.tab = createTab();
+  state.cursor = { row: 0, column: 0 };
+  buildEditor();
+  renderPreview();
+});
+
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const subtitle = document.getElementById('projectSubtitle').value.trim();
+  const title = document.getElementById('projectTitle').value.trim() || 'Tab';
+  let text = `${title}\n`;
+  if (subtitle) text += `${subtitle}\n`;
+  text += '\n';
+
+  const current = currentSection();
+  if (hasNotes(current.data)) text += formatTab(current);
+  state.sections.forEach(section => { text += formatTab(section); });
+
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${title.replace(/[^a-z0-9]+/gi, '_') || 'tab'}.txt`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+
+// ---------- Afspelen ----------
+
+const GUITAR_URLS = {
+  'F#2': 'Fs2.mp3', 'F#3': 'Fs3.mp3', 'F#4': 'Fs4.mp3',
+  'G2': 'G2.mp3', 'G3': 'G3.mp3', 'G4': 'G4.mp3',
+  'G#2': 'Gs2.mp3', 'G#3': 'Gs3.mp3', 'G#4': 'Gs4.mp3',
+  'A2': 'A2.mp3', 'A3': 'A3.mp3', 'A4': 'A4.mp3',
+  'A#2': 'As2.mp3', 'A#3': 'As3.mp3', 'A#4': 'As4.mp3',
+  'B2': 'B2.mp3', 'B3': 'B3.mp3', 'B4': 'B4.mp3',
+  'C3': 'C3.mp3', 'C4': 'C4.mp3', 'C5': 'C5.mp3',
+  'C#3': 'Cs3.mp3', 'C#4': 'Cs4.mp3', 'C#5': 'Cs5.mp3',
+  'D2': 'D2.mp3', 'D3': 'D3.mp3', 'D4': 'D4.mp3', 'D5': 'D5.mp3',
+  'D#2': 'Ds2.mp3', 'D#3': 'Ds3.mp3', 'D#4': 'Ds4.mp3',
+  'E2': 'E2.mp3', 'E3': 'E3.mp3', 'E4': 'E4.mp3',
+  'F2': 'F2.mp3', 'F3': 'F3.mp3', 'F4': 'F4.mp3',
+};
+const GUITAR_BASE_URL = 'https://nbrosowsky.github.io/tonejs-instruments/samples/guitar-acoustic/';
+
+const BASS_URLS = {
+  'E1': 'E1.mp3', 'G1': 'G1.mp3', 'A#1': 'As1.mp3',
+  'C#2': 'Cs2.mp3', 'E2': 'E2.mp3', 'G2': 'G2.mp3', 'A#2': 'As2.mp3',
+  'C#3': 'Cs3.mp3', 'E3': 'E3.mp3', 'G3': 'G3.mp3', 'A#3': 'As3.mp3',
+  'C#4': 'Cs4.mp3', 'E4': 'E4.mp3', 'G4': 'G4.mp3', 'A#4': 'As4.mp3',
+};
+const BASS_BASE_URL = 'https://nbrosowsky.github.io/tonejs-instruments/samples/bass-electric/';
+
+const PIANO_URLS = {
+  A0: 'A0.mp3', C1: 'C1.mp3', 'D#1': 'Ds1.mp3', 'F#1': 'Fs1.mp3', A1: 'A1.mp3',
+  C2: 'C2.mp3', 'D#2': 'Ds2.mp3', 'F#2': 'Fs2.mp3', A2: 'A2.mp3',
+  C3: 'C3.mp3', 'D#3': 'Ds3.mp3', 'F#3': 'Fs3.mp3', A3: 'A3.mp3',
+  C4: 'C4.mp3', 'D#4': 'Ds4.mp3', 'F#4': 'Fs4.mp3', A4: 'A4.mp3',
+  C5: 'C5.mp3', 'D#5': 'Ds5.mp3', 'F#5': 'Fs5.mp3', A5: 'A5.mp3',
+  C6: 'C6.mp3', 'D#6': 'Ds6.mp3', 'F#6': 'Fs6.mp3', A6: 'A6.mp3',
+};
+
+let currentInstrumentType = null;
+let currentInstrument = null;
+
+function createInstrument(type) {
+  if (type === 'piano') {
+    return new Tone.Sampler({ urls: PIANO_URLS, release: 1, baseUrl: 'https://tonejs.github.io/audio/salamander/' }).toDestination();
+  }
+  if (type === 'basgitaar') {
+    return new Tone.Sampler({ urls: BASS_URLS, release: 0.6, baseUrl: BASS_BASE_URL }).toDestination();
+  }
+  return new Tone.Sampler({ urls: GUITAR_URLS, release: 0.6, baseUrl: GUITAR_BASE_URL }).toDestination();
+}
+
+async function ensureInstrument() {
+  const type = document.getElementById('instrument').value;
+  if (type === currentInstrumentType && currentInstrument) return currentInstrument;
+  if (currentInstrument) currentInstrument.dispose();
+  currentInstrumentType = type;
+  currentInstrument = createInstrument(type);
+  document.getElementById('statusMsg').textContent = 'Samples laden...';
+  await Tone.loaded();
+  document.getElementById('statusMsg').textContent = '';
+  return currentInstrument;
+}
+
+async function playTabData(tabData, strings) {
+  const instrument = await ensureInstrument();
+  const bpm = parseFloat(document.getElementById('bpmInput').value) || 100;
+  const stepSeconds = 60 / bpm / 4;
+
+  let lastCol = -1;
+  tabData.forEach(row => row.forEach((v, c) => { if (v !== CONFIG.emptyCell) lastCol = Math.max(lastCol, c); }));
+  if (lastCol < 0) {
+    document.getElementById('statusMsg').textContent = 'Geen noten om af te spelen.';
+    return;
+  }
+  document.getElementById('statusMsg').textContent = '';
+
+  const now = Tone.now() + 0.1;
+  for (let col = 0; col <= lastCol; col++) {
+    tabData.forEach((row, r) => {
+      const val = row[col];
+      if (val === CONFIG.emptyCell) return;
+      const fret = parseInt(val, 10);
+      if (Number.isNaN(fret)) return;
+      const openMidi = parseNoteName(strings[r]);
+      if (openMidi === null) return;
+      instrument.triggerAttackRelease(midiToNote(openMidi + fret), stepSeconds * 0.9, now + col * stepSeconds);
+    });
+  }
+}
+
+document.getElementById('playBtn').addEventListener('click', async () => {
+  await Tone.start();
+  await playTabData(state.tab, state.strings);
+});
+
+// ---------- Bewaarde nummers (localStorage) ----------
+
+function currentProject() {
+  const current = currentSection();
+  const sections = [...state.sections];
+  if (hasNotes(current.data)) sections.push(current);
+  return {
+    title: document.getElementById('projectTitle').value || 'Nieuw nummer',
+    subtitle: document.getElementById('projectSubtitle').value || '',
+    sections,
+  };
+}
+
+function loadProject(project) {
+  document.getElementById('projectTitle').value = project.title || 'Nieuw nummer';
+  document.getElementById('projectSubtitle').value = project.subtitle || '';
+  state.sections = (project.sections || []).map(s => ({ title: s.title, strings: [...s.strings], data: s.data.map(row => [...row]) }));
+  state.selectedSection = -1;
+  state.strings = [...PRESETS.guitar];
+  CONFIG.columns = 24;
+  state.tab = createTab();
+  state.cursor = { row: 0, column: 0 };
+  buildEditor();
+  renderPreview();
+}
+
+function loadSavedProjects() {
+  return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+}
+
+function renderSavedList() {
+  const data = loadSavedProjects();
   const list = document.getElementById('savedList');
   const emptyMsg = document.getElementById('emptyMsg');
   list.innerHTML = '';
   const names = Object.keys(data);
   emptyMsg.style.display = names.length === 0 ? 'block' : 'none';
 
-  for (const name of names) {
+  names.forEach(name => {
     const li = document.createElement('li');
     li.className = 'flex items-center justify-between bg-slate-900 border border-slate-700 rounded px-3 py-2';
 
@@ -155,8 +612,8 @@ function loadSaved() {
     loadBtn.textContent = 'Laden';
     loadBtn.className = 'text-indigo-400 hover:text-indigo-300 text-xs font-medium';
     loadBtn.addEventListener('click', () => {
-      document.getElementById('tabInput').value = data[name];
-      document.getElementById('tabName').value = name;
+      loadProject(data[name]);
+      document.getElementById('projectName').value = name;
     });
 
     const deleteBtn = document.createElement('button');
@@ -165,31 +622,36 @@ function loadSaved() {
     deleteBtn.addEventListener('click', () => {
       delete data[name];
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      loadSaved();
+      renderSavedList();
     });
 
     btnGroup.appendChild(loadBtn);
     btnGroup.appendChild(deleteBtn);
     li.appendChild(btnGroup);
     list.appendChild(li);
-  }
+  });
 }
 
-document.getElementById('saveBtn').addEventListener('click', () => {
-  const name = document.getElementById('tabName').value.trim();
+document.getElementById('saveProjectBtn').addEventListener('click', () => {
+  const name = document.getElementById('projectName').value.trim();
   const statusMsg = document.getElementById('statusMsg');
   if (!name) {
-    statusMsg.textContent = 'Geef eerst een naam op voor deze tab.';
+    statusMsg.textContent = 'Geef eerst een naam op voor dit nummer.';
     return;
   }
-  const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-  data[name] = document.getElementById('tabInput').value;
+  const data = loadSavedProjects();
+  data[name] = currentProject();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   statusMsg.textContent = `Bewaard als "${name}".`;
-  loadSaved();
+  renderSavedList();
 });
 
-loadSaved();
+// ---------- Init ----------
+
+state.tab = createTab();
+buildEditor();
+renderPreview();
+renderSavedList();
 </script>
 </body>
 </html>

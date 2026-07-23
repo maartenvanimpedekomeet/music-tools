@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Akkoordtraining - Music Tools</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen p-6">
+  <div class="max-w-3xl mx-auto">
+    <a href="index.html" class="text-slate-400 hover:text-slate-200 text-sm">&larr; Music Tools</a>
+    <h1 class="text-2xl font-bold mt-2 mb-4">🎹 Akkoordtraining — Majeur/Mineur</h1>
+    <p class="text-slate-400 text-sm mb-6">
+      Er klinkt een akkoord van drie noten tegelijk. Herken of het een majeur- of mineurakkoord is.
+    </p>
+
+    <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <span class="text-slate-400 text-sm">Score: <span id="score" class="text-slate-100 font-semibold">0</span> / <span id="total">0</span></span>
+        <button id="replayBtn" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-sm">🔁 Herhaal</button>
+      </div>
+
+      <div id="feedback" class="min-h-[1.5rem] text-sm mb-1"></div>
+      <p id="chordInfo" class="min-h-[1.25rem] text-sm text-slate-400 mb-2"></p>
+
+      <div id="compareButtons" class="hidden flex gap-2 mb-4">
+        <button id="hearMajorBtn" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-sm">🔊 Hoor majeur</button>
+        <button id="hearMinorBtn" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-sm">🔊 Hoor mineur</button>
+      </div>
+
+      <div id="options" class="grid grid-cols-2 gap-2 mb-5"></div>
+
+      <div class="mb-2">
+        <div class="flex justify-end mb-1">
+          <button id="leftHandBtn" class="hidden bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded-lg text-xs">↔ Linkshandig</button>
+        </div>
+        <div id="vizWrap" class="overflow-x-auto pb-2 bg-slate-950/40 rounded-lg pl-5 pr-5">
+          <div id="piano" class="relative" style="height:150px;"></div>
+          <div id="neck" class="relative" style="display:none;"></div>
+        </div>
+        <p class="text-xs text-slate-500 mt-1">🟠 grondtoon · 🔵 terts · 🟢 kwint &mdash; verschijnt na je antwoord. Klik zelf op een toets/fret om te beluisteren.</p>
+      </div>
+
+      <div class="flex flex-wrap gap-3 justify-between items-center mt-4">
+        <label class="text-sm text-slate-400 flex items-center gap-2">
+          Instrument
+          <select id="instrument" class="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm">
+            <option value="piano">Piano</option>
+            <option value="gitaar">Gitaar</option>
+          </select>
+        </label>
+
+        <label class="text-sm text-slate-400 flex items-center gap-2">
+          <input type="checkbox" id="showRootToggle" class="accent-indigo-500">
+          Toon grondtoon
+        </label>
+
+        <button id="nextBtn" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg font-medium">▶ Start</button>
+      </div>
+    </div>
+
+    <p id="loadStatus" class="text-sm text-amber-400 min-h-[1.25rem]"></p>
+  </div>
+
+<script>
+const CHORD_TYPES = [
+  { name: 'Majeur', intervals: [0, 4, 7] },
+  { name: 'Mineur', intervals: [0, 3, 7] },
+];
+
+const PIANO_URLS = {
+  A0: 'A0.mp3', C1: 'C1.mp3', 'D#1': 'Ds1.mp3', 'F#1': 'Fs1.mp3', A1: 'A1.mp3',
+  C2: 'C2.mp3', 'D#2': 'Ds2.mp3', 'F#2': 'Fs2.mp3', A2: 'A2.mp3',
+  C3: 'C3.mp3', 'D#3': 'Ds3.mp3', 'F#3': 'Fs3.mp3', A3: 'A3.mp3',
+  C4: 'C4.mp3', 'D#4': 'Ds4.mp3', 'F#4': 'Fs4.mp3', A4: 'A4.mp3',
+  C5: 'C5.mp3', 'D#5': 'Ds5.mp3', 'F#5': 'Fs5.mp3', A5: 'A5.mp3',
+  C6: 'C6.mp3', 'D#6': 'Ds6.mp3', 'F#6': 'Fs6.mp3', A6: 'A6.mp3',
+};
+
+// Echte akoestische-gitaarsamples (CC-BY 3.0, nbrosowsky/tonejs-instruments).
+// Tone.Sampler is van nature polyfoon, dus dit speelt de 3 akkoordnoten
+// gewoon samen — geen aparte PolySynth-constructie nodig.
+const GUITAR_URLS = {
+  'F#2': 'Fs2.mp3', 'F#3': 'Fs3.mp3', 'F#4': 'Fs4.mp3',
+  'G2': 'G2.mp3', 'G3': 'G3.mp3', 'G4': 'G4.mp3',
+  'G#2': 'Gs2.mp3', 'G#3': 'Gs3.mp3', 'G#4': 'Gs4.mp3',
+  'A2': 'A2.mp3', 'A3': 'A3.mp3', 'A4': 'A4.mp3',
+  'A#2': 'As2.mp3', 'A#3': 'As3.mp3', 'A#4': 'As4.mp3',
+  'B2': 'B2.mp3', 'B3': 'B3.mp3', 'B4': 'B4.mp3',
+  'C3': 'C3.mp3', 'C4': 'C4.mp3', 'C5': 'C5.mp3',
+  'C#3': 'Cs3.mp3', 'C#4': 'Cs4.mp3', 'C#5': 'Cs5.mp3',
+  'D2': 'D2.mp3', 'D3': 'D3.mp3', 'D4': 'D4.mp3', 'D5': 'D5.mp3',
+  'D#2': 'Ds2.mp3', 'D#3': 'Ds3.mp3', 'D#4': 'Ds4.mp3',
+  'E2': 'E2.mp3', 'E3': 'E3.mp3', 'E4': 'E4.mp3',
+  'F2': 'F2.mp3', 'F3': 'F3.mp3', 'F4': 'F4.mp3',
+};
+const GUITAR_BASE_URL = 'https://nbrosowsky.github.io/tonejs-instruments/samples/guitar-acoustic/';
+
+let currentInstrumentType = null;
+let currentInstrument = null;
+let current = null; // { rootMidi, notes, correctIdx }
+let score = 0, total = 0;
+let answered = false;
+
+const NOTE_NAMES_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+// Bekende nummers die met dit akkoord openen/erop gebaseerd zijn — alleen
+// akkoorden met een voldoende betrouwbare referentie zijn opgenomen.
+const CHORD_SONGS = {
+  Majeur: {
+    'C':  { song: 'Let It Be', artist: 'The Beatles' },
+    'D':  { song: "Free Fallin'", artist: 'Tom Petty' },
+    'D#': { song: "Isn't She Lovely", artist: 'Stevie Wonder' },
+    'E':  { song: 'Should I Stay or Should I Go', artist: 'The Clash' },
+    'F':  { song: 'My Girl', artist: 'The Temptations' },
+    'G':  { song: 'Brown Eyed Girl', artist: 'Van Morrison' },
+    'A':  { song: 'Glory Days', artist: 'Bruce Springsteen' },
+    'A#': { song: 'Purple Rain', artist: 'Prince' },
+    'B':  { song: 'Message in a Bottle', artist: 'The Police' },
+  },
+  Mineur: {
+    'C':  { song: 'Smooth Criminal', artist: 'Michael Jackson' },
+    'D':  { song: 'Stray Cat Strut', artist: 'Stray Cats' },
+    'E':  { song: 'Nothing Else Matters', artist: 'Metallica' },
+    'F#': { song: 'Wonderwall', artist: 'Oasis' },
+    'G':  { song: 'Roxanne', artist: 'The Police' },
+    'A':  { song: 'Stairway to Heaven', artist: 'Led Zeppelin' },
+    'B':  { song: 'Hotel California', artist: 'Eagles' },
+  },
+};
+
+function chordLabel(rootMidi, chordTypeName) {
+  const name = NOTE_NAMES_SHARP[rootMidi % 12];
+  return chordTypeName === 'Mineur' ? name + 'm' : name;
+}
+
+function chordReference(rootMidi, chordTypeName) {
+  const name = NOTE_NAMES_SHARP[rootMidi % 12];
+  const table = CHORD_SONGS[chordTypeName];
+  return table ? table[name] : null;
+}
+
+function midiToNote(midi) {
+  const names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const name = names[midi % 12];
+  const octave = Math.floor(midi / 12) - 1;
+  return name + octave;
+}
+
+function selectedInstrument() {
+  return document.getElementById('instrument').value;
+}
+
+function createInstrument(type) {
+  if (type === 'piano') {
+    return new Tone.Sampler({
+      urls: PIANO_URLS,
+      release: 1,
+      baseUrl: 'https://tonejs.github.io/audio/salamander/',
+    }).toDestination();
+  }
+  // gitaar: echte gitaarsamples i.p.v. synthese — klinkt gegarandeerd als
+  // een gitaar, en Sampler kan de 3 akkoordnoten gewoon samen spelen.
+  return new Tone.Sampler({
+    urls: GUITAR_URLS,
+    release: 0.6,
+    baseUrl: GUITAR_BASE_URL,
+  }).toDestination();
+}
+
+function triggerNote(instrument, midi, time) {
+  instrument.triggerAttackRelease(midiToNote(midi), 0.6, time);
+}
+
+function triggerChord(instrument, midis, time) {
+  instrument.triggerAttackRelease(midis.map(midiToNote), 1.2, time);
+}
+
+const ROOT_RANGE = [48, 60]; // C3 - C4, ruimte genoeg voor grondtoon+terts+kwint
+
+async function ensureInstrument() {
+  const type = selectedInstrument();
+  if (type === currentInstrumentType && currentInstrument) return currentInstrument;
+
+  if (currentInstrument) currentInstrument.dispose();
+  currentInstrumentType = type;
+  currentInstrument = createInstrument(type);
+
+  if (type === 'piano' || type === 'gitaar') {
+    document.getElementById('loadStatus').textContent = 'Samples laden...';
+    await Tone.loaded();
+    document.getElementById('loadStatus').textContent = '';
+  }
+  return currentInstrument;
+}
+
+async function playChord() {
+  if (!current) return;
+  const instrument = await ensureInstrument();
+  const now = Tone.now() + 0.1;
+  triggerChord(instrument, current.notes, now);
+}
+
+// Speel majeur of mineur op dezelfde grondtoon als het huidige akkoord —
+// zodat je na je antwoord het verschil meteen kan vergelijken.
+async function playChordType(typeIdx) {
+  if (!current) return;
+  const instrument = await ensureInstrument();
+  const notes = CHORD_TYPES[typeIdx].intervals.map(i => current.rootMidi + i);
+  triggerChord(instrument, notes, Tone.now() + 0.05);
+}
+
+const MAJOR_IDX = CHORD_TYPES.findIndex(c => c.name === 'Majeur');
+const MINOR_IDX = CHORD_TYPES.findIndex(c => c.name === 'Mineur');
+
+async function newQuestion() {
+  answered = false;
+  document.getElementById('feedback').textContent = '';
+  document.getElementById('chordInfo').textContent = '';
+  document.getElementById('compareButtons').classList.add('hidden');
+  clearHighlights();
+
+  const [lo, hi] = ROOT_RANGE;
+  const rootMidi = lo + Math.floor(Math.random() * (hi - lo + 1));
+  const idx = Math.floor(Math.random() * CHORD_TYPES.length);
+  const notes = CHORD_TYPES[idx].intervals.map(i => rootMidi + i);
+
+  current = { rootMidi, notes, correctIdx: idx };
+  renderOptions();
+  await playChord();
+  if (document.getElementById('showRootToggle').checked) showRootHint();
+}
+
+function renderOptions() {
+  const container = document.getElementById('options');
+  container.innerHTML = '';
+  CHORD_TYPES.forEach((chord, idx) => {
+    const btn = document.createElement('button');
+    btn.textContent = chord.name;
+    btn.className = 'bg-slate-700 hover:bg-slate-600 rounded-lg py-2 text-sm text-left px-3';
+    btn.addEventListener('click', () => checkAnswer(idx, btn));
+    container.appendChild(btn);
+  });
+}
+
+function checkAnswer(idx, btn) {
+  if (answered || !current) return;
+  answered = true;
+  total++;
+  const feedback = document.getElementById('feedback');
+  if (idx === current.correctIdx) {
+    score++;
+    feedback.textContent = '✅ Correct!';
+    feedback.className = 'min-h-[1.5rem] text-sm mb-4 text-emerald-400';
+  } else {
+    feedback.textContent = `❌ Fout. Het juiste antwoord was: ${CHORD_TYPES[current.correctIdx].name}.`;
+    feedback.className = 'min-h-[1.5rem] text-sm mb-4 text-red-400';
+  }
+  document.getElementById('score').textContent = score;
+  document.getElementById('total').textContent = total;
+  highlightChord(current.notes);
+
+  const chordTypeName = CHORD_TYPES[current.correctIdx].name;
+  const label = chordLabel(current.rootMidi, chordTypeName);
+  const ref = chordReference(current.rootMidi, chordTypeName);
+  document.getElementById('chordInfo').textContent = ref
+    ? `Akkoord: ${label} — bekend van "${ref.song}" (${ref.artist})`
+    : `Akkoord: ${label}`;
+  document.getElementById('compareButtons').classList.remove('hidden');
+}
+
+document.getElementById('replayBtn').addEventListener('click', async () => {
+  await Tone.start();
+  await playChord();
+});
+
+document.getElementById('hearMajorBtn').addEventListener('click', async () => {
+  await Tone.start();
+  await playChordType(MAJOR_IDX);
+});
+
+document.getElementById('hearMinorBtn').addEventListener('click', async () => {
+  await Tone.start();
+  await playChordType(MINOR_IDX);
+});
+
+document.getElementById('nextBtn').addEventListener('click', async () => {
+  // Niet doorklikken naar een nieuw akkoord zolang het huidige nog niet
+  // beantwoord is (behalve de allereerste "Start"-klik).
+  if (current && !answered) return;
+  await Tone.start();
+  await newQuestion();
+  document.getElementById('nextBtn').textContent = 'Volgende ▶';
+});
+
+document.getElementById('instrument').addEventListener('change', () => {
+  updateVisualizer();
+  if (answered && current) highlightChord(current.notes);
+});
+
+// ---------- Highlighting (gedeeld tussen piano en hals) ----------
+
+let highlightedEls = [];
+const NOTE_RING_CLASSES = ['ring-amber-400', 'ring-sky-400', 'ring-emerald-400'];
+
+function getElementsForMidi(midi) {
+  if (selectedInstrument() === 'piano') {
+    const info = keyElements[midi];
+    return info ? [info.el] : [];
+  }
+  return fretElements[midi] || [];
+}
+
+function clearHighlights() {
+  highlightedEls.forEach(el => el.classList.remove('ring-4', 'ring-inset', ...NOTE_RING_CLASSES));
+  highlightedEls = [];
+}
+
+// notes[0] = grondtoon (oranje), notes[1] = terts (blauw), notes[2] = kwint (groen)
+function highlightChord(notes) {
+  clearHighlights();
+  let allEls = [];
+  notes.forEach((midi, i) => {
+    const els = getElementsForMidi(midi);
+    els.forEach(el => el.classList.add('ring-4', 'ring-inset', NOTE_RING_CLASSES[i]));
+    allEls = [...allEls, ...els];
+  });
+  highlightedEls = allEls;
+}
+
+// Optionele hint: alleen de grondtoon alvast tonen, vóór het antwoord.
+function showRootHint() {
+  if (!current) return;
+  const rootEls = getElementsForMidi(current.rootMidi);
+  rootEls.forEach(el => el.classList.add('ring-4', 'ring-inset', 'ring-amber-400'));
+  highlightedEls = [...highlightedEls, ...rootEls];
+}
+
+document.getElementById('showRootToggle').addEventListener('change', (e) => {
+  if (answered) return;
+  if (e.target.checked && current) {
+    showRootHint();
+  } else if (!e.target.checked) {
+    clearHighlights();
+  }
+});
+
+let leftHanded = false;
+
+function updateVisualizer() {
+  const type = selectedInstrument();
+  const piano = document.getElementById('piano');
+  const neck = document.getElementById('neck');
+  const leftBtn = document.getElementById('leftHandBtn');
+  if (type === 'piano') {
+    piano.style.display = 'block';
+    neck.style.display = 'none';
+    leftBtn.classList.add('hidden');
+  } else {
+    piano.style.display = 'none';
+    neck.style.display = 'block';
+    leftBtn.classList.remove('hidden');
+    buildNeck(type);
+  }
+}
+
+document.getElementById('leftHandBtn').addEventListener('click', () => {
+  leftHanded = !leftHanded;
+  document.getElementById('leftHandBtn').classList.toggle('bg-indigo-600', leftHanded);
+  const type = selectedInstrument();
+  if (type !== 'piano') buildNeck(type);
+  if (answered && current) highlightChord(current.notes);
+});
+
+// ---------- Piano keyboard ----------
+
+const PIANO_START = 36; // C2
+const PIANO_END = 84;   // C6
+const WHITE_W = 34, WHITE_H = 150, BLACK_W = 20, BLACK_H = 92;
+
+// offset in "witte-toets-breedtes" vanaf het begin van de octaaf (C = 0)
+const KEY_LAYOUT = {
+  0:  { type: 'white', offset: 0 },    // C
+  1:  { type: 'black', offset: 0.68 }, // C#
+  2:  { type: 'white', offset: 1 },    // D
+  3:  { type: 'black', offset: 1.72 }, // D#
+  4:  { type: 'white', offset: 2 },    // E
+  5:  { type: 'white', offset: 3 },    // F
+  6:  { type: 'black', offset: 3.65 }, // F#
+  7:  { type: 'white', offset: 4 },    // G
+  8:  { type: 'black', offset: 4.7 },  // G#
+  9:  { type: 'white', offset: 5 },    // A
+  10: { type: 'black', offset: 5.75 }, // A#
+  11: { type: 'white', offset: 6 },    // B
+};
+
+const keyElements = {}; // midi -> { el, type }
+
+async function pressKey(midi) {
+  await Tone.start();
+  const instrument = await ensureInstrument();
+  triggerNote(instrument, midi, Tone.now());
+  flashKey(midi);
+}
+
+function flashKey(midi) {
+  const info = keyElements[midi];
+  if (!info) return;
+  const flashClass = info.type === 'white' ? 'bg-indigo-300' : 'bg-indigo-600';
+  info.el.classList.add(flashClass);
+  setTimeout(() => info.el.classList.remove(flashClass), 200);
+}
+
+function buildPiano() {
+  const piano = document.getElementById('piano');
+  piano.innerHTML = '';
+  let maxX = 0;
+
+  // witte toetsen eerst
+  for (let midi = PIANO_START; midi <= PIANO_END; midi++) {
+    const rel = midi - PIANO_START;
+    const octave = Math.floor(rel / 12);
+    const layout = KEY_LAYOUT[rel % 12];
+    if (layout.type !== 'white') continue;
+    const x = octave * 7 * WHITE_W + layout.offset * WHITE_W;
+    maxX = Math.max(maxX, x + WHITE_W);
+
+    const key = document.createElement('div');
+    key.className = 'absolute bg-slate-100 hover:bg-slate-300 border border-slate-400 rounded-b cursor-pointer transition-colors';
+    key.style.left = x + 'px';
+    key.style.top = '0px';
+    key.style.width = WHITE_W + 'px';
+    key.style.height = WHITE_H + 'px';
+    key.style.zIndex = 1;
+    key.addEventListener('click', () => pressKey(midi));
+
+    if (rel % 12 === 0) {
+      const label = document.createElement('span');
+      label.textContent = midiToNote(midi);
+      label.className = 'absolute bottom-1 left-1/2 -translate-x-1/2 text-[10px] text-slate-500 select-none pointer-events-none';
+      key.appendChild(label);
+    }
+
+    piano.appendChild(key);
+    keyElements[midi] = { el: key, type: 'white' };
+  }
+
+  // zwarte toetsen bovenop
+  for (let midi = PIANO_START; midi <= PIANO_END; midi++) {
+    const rel = midi - PIANO_START;
+    const octave = Math.floor(rel / 12);
+    const layout = KEY_LAYOUT[rel % 12];
+    if (layout.type !== 'black') continue;
+    const x = octave * 7 * WHITE_W + layout.offset * WHITE_W - BLACK_W / 2;
+
+    const key = document.createElement('div');
+    key.className = 'absolute bg-slate-900 hover:bg-slate-700 border border-slate-950 rounded-b cursor-pointer transition-colors';
+    key.style.left = x + 'px';
+    key.style.top = '0px';
+    key.style.width = BLACK_W + 'px';
+    key.style.height = BLACK_H + 'px';
+    key.style.zIndex = 2;
+    key.addEventListener('click', () => pressKey(midi));
+
+    piano.appendChild(key);
+    keyElements[midi] = { el: key, type: 'black' };
+  }
+
+  piano.style.width = maxX + 'px';
+}
+
+// ---------- Gitaarhals ----------
+
+const NECKS = {
+  gitaar: {
+    frets: 14,
+    // van hoog naar laag, zoals de tab-notatie (e|B|G|D|A|E)
+    strings: [
+      { name: 'e', open: 64 },
+      { name: 'B', open: 59 },
+      { name: 'G', open: 55 },
+      { name: 'D', open: 50 },
+      { name: 'A', open: 45 },
+      { name: 'E', open: 40 },
+    ],
+  },
+};
+
+const FRET_W = 34, ROW_H = 30, NUT_W = 14;
+const MARKER_FRETS = [3, 5, 7, 9, 12];
+
+let fretElements = {}; // midi -> [el, ...]
+
+async function pressFret(midi, cell) {
+  await Tone.start();
+  const instrument = await ensureInstrument();
+  triggerNote(instrument, midi, Tone.now());
+  cell.classList.add('bg-indigo-400');
+  setTimeout(() => cell.classList.remove('bg-indigo-400'), 200);
+}
+
+function buildNeck(type) {
+  const config = NECKS[type];
+  const neck = document.getElementById('neck');
+  neck.innerHTML = '';
+  fretElements = {};
+
+  const numStrings = config.strings.length;
+  const width = NUT_W + (config.frets + 1) * FRET_W;
+  const height = numStrings * ROW_H + 24;
+  neck.style.width = width + 'px';
+  neck.style.height = height + 'px';
+
+  const mirror = x => (leftHanded ? width - x : x);
+
+  // fret-inlays (positiestippen)
+  MARKER_FRETS.filter(f => f <= config.frets).forEach(f => {
+    const x = mirror(NUT_W + (f - 0.5) * FRET_W);
+    const dot = document.createElement('div');
+    dot.className = 'absolute bg-slate-600 rounded-full';
+    dot.style.width = '7px';
+    dot.style.height = '7px';
+    dot.style.left = (x - 3.5) + 'px';
+    dot.style.top = (height - 16) + 'px';
+    neck.appendChild(dot);
+  });
+
+  // fretlijnen (verticaal)
+  for (let f = 1; f <= config.frets; f++) {
+    const line = document.createElement('div');
+    line.className = 'absolute bg-slate-500';
+    line.style.left = mirror(NUT_W + f * FRET_W) + 'px';
+    line.style.top = '6px';
+    line.style.width = '2px';
+    line.style.height = (numStrings * ROW_H) + 'px';
+    neck.appendChild(line);
+  }
+
+  // kam (nut) — links, of rechts bij linkshandige weergave
+  const nut = document.createElement('div');
+  nut.className = 'absolute bg-slate-200';
+  nut.style.left = (leftHanded ? width - 4 : 0) + 'px';
+  nut.style.top = '6px';
+  nut.style.width = '4px';
+  nut.style.height = (numStrings * ROW_H) + 'px';
+  neck.appendChild(nut);
+
+  config.strings.forEach((str, rowIdx) => {
+    const y = 10 + rowIdx * ROW_H;
+
+    const line = document.createElement('div');
+    line.className = 'absolute bg-slate-400';
+    line.style.left = '0px';
+    line.style.top = (y - 1) + 'px';
+    line.style.width = width + 'px';
+    line.style.height = '2px';
+    neck.appendChild(line);
+
+    const label = document.createElement('span');
+    label.textContent = str.name;
+    label.className = 'absolute text-xs text-slate-400 select-none';
+    label.style.left = (leftHanded ? width + 4 : -14) + 'px';
+    label.style.top = (y - 8) + 'px';
+    neck.appendChild(label);
+
+    for (let fret = 0; fret <= config.frets; fret++) {
+      const midi = str.open + fret;
+      const x = mirror(fret === 0 ? NUT_W / 2 : NUT_W + (fret - 0.5) * FRET_W);
+
+      const cell = document.createElement('button');
+      cell.className = 'absolute rounded-full border border-slate-600/60 hover:bg-slate-500/40 transition-colors';
+      cell.style.width = '22px';
+      cell.style.height = '22px';
+      cell.style.left = (x - 11) + 'px';
+      cell.style.top = (y - 11) + 'px';
+      cell.style.zIndex = 3;
+      cell.addEventListener('click', () => pressFret(midi, cell));
+      neck.appendChild(cell);
+
+      if (!fretElements[midi]) fretElements[midi] = [];
+      fretElements[midi].push(cell);
+    }
+  });
+
+  const vizWrap = document.getElementById('vizWrap');
+  vizWrap.scrollLeft = leftHanded ? vizWrap.scrollWidth : 0;
+}
+
+buildPiano();
+updateVisualizer();
+renderOptions();
+</script>
+</body>
+</html>
