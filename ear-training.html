@@ -21,7 +21,10 @@
         <button id="replayBtn" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-sm">🔁 Herhaal</button>
       </div>
 
-      <div id="feedback" class="min-h-[1.5rem] text-sm mb-4"></div>
+      <div id="feedback" class="min-h-[1.5rem] text-sm mb-1"></div>
+      <p id="noteNamesInfo" class="min-h-[1.25rem] text-sm text-slate-400 mb-2"></p>
+
+      <div id="compareButtons" class="hidden flex flex-wrap gap-2 mb-4"></div>
 
       <div id="options" class="grid grid-cols-2 gap-2 mb-5"></div>
 
@@ -197,9 +200,47 @@ async function playInterval() {
   triggerNote(instrument, current.secondMidi, now + 0.8);
 }
 
+// Speel een ander intervaltype op dezelfde grondtoon/richting als de huidige
+// vraag — zodat je na je antwoord de mogelijkheden kan vergelijken.
+async function playIntervalType(idx) {
+  if (!current) return;
+  const instrument = await ensureInstrument();
+  const semitones = INTERVALS[idx].semitones;
+  let direction = current.direction;
+  let secondMidi = current.rootMidi + (direction === 'down' ? -semitones : semitones);
+
+  const type = selectedInstrument();
+  const range = NECK_RANGE[type] || NECK_RANGE.piano;
+  if (secondMidi < range.min || secondMidi > range.max) {
+    direction = direction === 'down' ? 'up' : 'down';
+    secondMidi = current.rootMidi + (direction === 'down' ? -semitones : semitones);
+  }
+
+  const now = Tone.now() + 0.05;
+  triggerNote(instrument, current.rootMidi, now);
+  triggerNote(instrument, secondMidi, now + 0.8);
+}
+
+function renderCompareButtons() {
+  const container = document.getElementById('compareButtons');
+  container.innerHTML = '';
+  INTERVALS.forEach((interval, idx) => {
+    const btn = document.createElement('button');
+    btn.textContent = `🔊 ${interval.name}`;
+    btn.className = 'bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-sm';
+    btn.addEventListener('click', async () => {
+      await Tone.start();
+      await playIntervalType(idx);
+    });
+    container.appendChild(btn);
+  });
+}
+
 async function newQuestion() {
   answered = false;
   document.getElementById('feedback').textContent = '';
+  document.getElementById('noteNamesInfo').textContent = '';
+  document.getElementById('compareButtons').classList.add('hidden');
   clearHighlights();
 
   const type = selectedInstrument();
@@ -253,6 +294,10 @@ function checkAnswer(idx, btn) {
   document.getElementById('score').textContent = score;
   document.getElementById('total').textContent = total;
   highlightInterval(current.rootMidi, current.secondMidi);
+
+  document.getElementById('noteNamesInfo').textContent =
+    `Noten: ${midiToNote(current.rootMidi)} → ${midiToNote(current.secondMidi)}`;
+  document.getElementById('compareButtons').classList.remove('hidden');
 }
 
 document.getElementById('replayBtn').addEventListener('click', async () => {
@@ -577,6 +622,7 @@ function buildNeck(type) {
 buildPiano();
 updateVisualizer();
 renderOptions();
+renderCompareButtons();
 </script>
 </body>
 </html>
