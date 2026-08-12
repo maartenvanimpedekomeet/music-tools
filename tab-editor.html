@@ -337,6 +337,9 @@ function renderPreview() {
 
     preview.appendChild(header);
     const pre = document.createElement('div');
+    // Witte achtergrond + zwarte tekst, los van de rest van de (donkere)
+    // pagina — zo blijft dit leesbaar als je het kopieert naar bv. Word.
+    pre.className = 'bg-white text-slate-900 rounded-lg p-3 mb-1 whitespace-pre overflow-x-auto';
     pre.textContent = formatTab(section);
     preview.appendChild(pre);
   });
