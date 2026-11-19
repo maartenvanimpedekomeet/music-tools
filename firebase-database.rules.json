@@ -1,0 +1,16 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "bands": {
+      "apres-ska": {
+        ".read":  "auth != null && auth.token.email === 'apresskaband@gmail.com'",
+        ".write": "auth != null && auth.token.email === 'apresskaband@gmail.com'"
+      },
+      "mise-en-scene": {
+        ".read":  "auth != null && auth.token.email === 'wearemes@gmail.com'",
+        ".write": "auth != null && auth.token.email === 'wearemes@gmail.com'"
+      }
+    }
+  }
+}
