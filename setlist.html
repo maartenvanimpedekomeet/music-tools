@@ -130,6 +130,16 @@ button{cursor:pointer;font:inherit;border:none;border-radius:var(--r-sm);display
 .di::placeholder{color:var(--text3)}
 
 /* ── TUNING WARN ── */
+.lk{display:flex;align-items:center;justify-content:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--accent);padding:2px 10px;margin:-2px 0 4px 42px;background:var(--accent-bg);border-radius:6px}
+.lk-btn.on{color:var(--accent);background:var(--accent-bg);outline:1.5px solid var(--accent)}
+.chk{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text)}
+.chk input{width:auto;margin:0;accent-color:var(--accent)}
+.chk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 12px}
+.exp-page-wrap{background:var(--surface);border-radius:8px;padding:10px;overflow:hidden}
+.exp-page{background:#fff;color:#111;width:451pt;min-height:698pt;margin:0 auto;box-shadow:0 1px 6px rgba(0,0,0,.25)}
+.logo-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.logo-row.big img{max-height:90px;max-width:220px}
+.logo-row img{max-height:40px;max-width:120px;background:#fff;border-radius:4px;padding:2px}
 .tw{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--warn);font-weight:600;padding:4px 10px 4px 42px;background:rgba(149,80,16,.07);border-radius:6px;margin-bottom:4px}
 
 /* ── BREAK ── */
@@ -248,7 +258,7 @@ textarea{resize:vertical;min-height:72px}
     <div class="hd"></div>
     <div class="hg">
       <select id="band-sel"></select>
-      <button class="btn-icon" id="btn-band-mgr" title="Bands beheren">⚙</button>
+      <button class="btn-icon" id="btn-logo" title="Bandlogo">🖼</button>
     </div>
     <div class="hd"></div>
     <div class="hg">
@@ -288,7 +298,7 @@ textarea{resize:vertical;min-height:72px}
     <aside class="panel lib-panel" id="lib-panel">
       <div class="panel-head">
         <span class="panel-title">Bibliotheek</span>
-        <button class="btn btn-sm btn-accent" id="btn-new-song">+ Nummer</button>
+        <span style="display:flex;gap:6px"><button class="btn btn-sm" id="btn-bulk-songs" title="Meerdere nummers in één keer toevoegen">+ Meerdere</button><button class="btn btn-sm btn-accent" id="btn-new-song">+ Nummer</button></span>
       </div>
       <div class="lib-filter">
         <button class="filt on" id="filt-avail">Beschikbaar</button>
@@ -358,8 +368,7 @@ function logout(){ try{ sessionStorage.removeItem(SESSION_KEY) }catch(e){} locat
 function showApp(){
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
-  // Eén band per account: geen bandkeuze of bandbeheer
-  document.getElementById('btn-band-mgr').style.display='none';
+  // Eén band per account: geen bandkeuze
   document.getElementById('band-sel').disabled=true;
   render();
 }
@@ -391,7 +400,7 @@ async function doLogin(){
 }
 
 // ── STATE ──
-let S = { bands:[], songs:[], setlists:[], items:[], bandId:null, setId:null, filter:'avail' };
+let S = { bands:[], songs:[], setlists:[], items:[], logo:null, bandId:null, setId:null, filter:'avail' };
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6) }
 function save(){
@@ -491,6 +500,10 @@ function rSetlist(){
       }
     }
     iEl.appendChild(buildItem(item,idx,its));
+    if(isLinked(its,idx)){
+      const c=document.createElement('div'); c.className='lk';
+      c.textContent='↓ direct door, zonder bindtekst'; iEl.appendChild(c);
+    }
   });
   initDrag();
 }
@@ -522,6 +535,7 @@ function buildItem(item,idx,all){
         <span class="item-t">${esc(s.title)}</span>
         <div class="stags">${tags}${edot}</div>
         <div class="iac">
+          ${nextIsSong(all,idx)?`<button class="btn-ghost btn-sm lk-btn${item.link?' on':''}" onclick="toggleLink('${item.id}')" title="${item.link?'Koppeling met het volgende nummer verwijderen':'Koppel aan het volgende nummer (direct doorspelen)'}">🔗</button>`:''}
           <button class="btn-ghost btn-sm" onclick="toggleDet('${item.id}')" title="Bindtekst / notitie">📝</button>
           <button class="btn-ghost btn-sm btn-danger" onclick="removeItem('${item.id}')" title="Verwijderen">✕</button>
         </div>
@@ -630,6 +644,9 @@ function addNote(){
 function removeItem(id){ S.items=S.items.filter(i=>i.id!==id); save(); render() }
 function updItem(id,f,v){ const i=S.items.find(x=>x.id===id); if(i){i[f]=v;save()} }
 function updBreakDur(id,val){ const i=S.items.find(x=>x.id===id); if(i){i.dur=parseDur(val);save();rSetlist()} }
+function nextIsSong(all,idx){ return all[idx]?.type==='song' && all[idx+1]?.type==='song' }
+function isLinked(all,idx){ return nextIsSong(all,idx) && !!all[idx].link }
+function toggleLink(id){ const i=S.items.find(x=>x.id===id); if(i){ i.link=!i.link; save(); render() } }
 function toggleDet(id){ document.getElementById('det-'+id)?.classList.toggle('hidden') }
 function moveItem(id,dir){
   const its=setItems(S.setId); const idx=its.findIndex(i=>i.id===id); const ni=idx+dir;
@@ -667,7 +684,7 @@ function cDrag(){ document.querySelectorAll('.drop-top,.drop-bottom').forEach(x=
 
 // ── MODALS ──
 function showModal(h){ document.getElementById('modal').innerHTML=h; document.getElementById('overlay').classList.remove('hidden') }
-function hideModal(){ document.getElementById('overlay').classList.add('hidden') }
+function hideModal(){ document.getElementById('overlay').classList.add('hidden'); document.getElementById('modal').style.maxWidth='' }
 
 function showBandModal(){
   showModal(`<div class="mh"><span class="mt">Bands</span><button class="btn-ghost" onclick="hideModal()">✕</button></div>
@@ -703,6 +720,36 @@ function saveSong(id){
   if(id) updSong(id,data); else addSong(data);
   hideModal();
 }
+// ── Meerdere nummers in één keer toevoegen: één regel per nummer, bv. "Fragile 3:13" ──
+function showBulkModal(){
+  if(!S.bandId){toast('Nog aan het laden…');return}
+  showModal(`<div class="mh"><span class="mt">Meerdere nummers toevoegen</span><button class="btn-ghost" onclick="hideModal()">✕</button></div>
+    <div class="mb">
+      <p style="font-size:12.5px;color:var(--text2)">Één nummer per regel: de titel, dan de duur (m:ss). Bijvoorbeeld <em>Fragile 3:13</em> of <em>Fragile;3:13</em>.</p>
+      <div class="fg"><label>Nummers</label><textarea id="bk-t" rows="10" placeholder="Fragile 3:13&#10;Blackout 3:03"></textarea></div>
+      <div class="fg"><label>Stemming voor al deze nummers</label><input type="text" id="bk-tu" value="E"></div>
+    </div>
+    <div class="mf"><span style="flex:1"></span><button class="btn" onclick="hideModal()">Annuleren</button><button class="btn btn-accent" onclick="doBulkAdd()">Toevoegen</button></div>`);
+  setTimeout(()=>document.getElementById('bk-t')?.focus(),40);
+}
+function doBulkAdd(){
+  const raw=document.getElementById('bk-t')?.value||'';
+  const tuning=document.getElementById('bk-tu')?.value.trim()||'E';
+  const have=new Set(bandSongs(S.bandId).map(x=>x.title.trim().toLowerCase()));
+  let added=0, skipped=0, bad=[];
+  raw.split(/\r?\n/).map(l=>l.trim()).filter(Boolean).forEach(line=>{
+    const m=line.match(/^(.*?)[\s;,\t]+(\d+:\d{2})$/);
+    const title=(m?m[1]:line).replace(/[;,\s]+$/,'').trim();
+    if(!title){ bad.push(line); return }
+    if(have.has(title.toLowerCase())){ skipped++; return }
+    have.add(title.toLowerCase());
+    S.songs.push({id:uid(),bandId:S.bandId,title,key:'',bpm:null,tuning,dur:m?parseDur(m[2]):0,energy:'other',notes:''});
+    added++;
+  });
+  if(added){ save(); render() }
+  hideModal();
+  toast(`${added} nummer${added===1?'':'s'} toegevoegd`+(skipped?`, ${skipped} bestond al`:'')+(bad.length?`, ${bad.length} overgeslagen`:''));
+}
 function confirmDelSong(id){ const s=getSong(id); showModal(`<div class="mh"><span class="mt">Verwijderen</span><button class="btn-ghost" onclick="showSongModal('${id}')">←</button></div><div class="mb"><p>Verwijder <strong>${esc(s?.title)}</strong>? Het wordt ook uit alle setlists verwijderd.</p></div><div class="mf"><button class="btn" onclick="showSongModal('${id}')">Annuleren</button><button class="btn btn-accent" style="background:var(--danger)" onclick="delSong('${id}');hideModal()">Verwijderen</button></div>`) }
 
 function showNewSetModal(){ showModal(`<div class="mh"><span class="mt">Nieuwe setlist</span><button class="btn-ghost" onclick="hideModal()">✕</button></div><div class="mb"><div class="fg"><label>Naam</label><input type="text" id="ns-n" placeholder="Bijv. Optreden 15 okt…"></div></div><div class="mf"><button class="btn" onclick="hideModal()">Annuleren</button><button class="btn btn-accent" onclick="doAddSet()">Aanmaken</button></div>`); setTimeout(()=>document.getElementById('ns-n')?.focus(),40) }
@@ -712,40 +759,153 @@ function doRenSet(){ const n=document.getElementById('rs-n')?.value.trim(); if(!
 function showDelSetModal(){ if(!S.setId)return; const sl=getSet(S.setId); showModal(`<div class="mh"><span class="mt">Setlist verwijderen</span><button class="btn-ghost" onclick="hideModal()">✕</button></div><div class="mb"><p>Verwijder <strong>${esc(sl?.name)}</strong>?</p></div><div class="mf"><button class="btn" onclick="hideModal()">Annuleren</button><button class="btn btn-accent" style="background:var(--danger)" onclick="delSet(S.setId);hideModal()">Verwijderen</button></div>`) }
 
 // ── EXPORT ──
-function showExportModal(){
+const EXP_KEY='sl-export-opts-v1';
+const EXP_DEF={nr:true,title:true,key:true,bpm:true,tun:true,dur:true,notes:true,fill:true};
+const EXP_PAGE_W=451, EXP_PAGE_H=698, EXP_TARGET_H=665; // pt: A4 met standaardmarges
+function loadExpOpts(){ try{ return {...EXP_DEF,...JSON.parse(localStorage.getItem(EXP_KEY)||'{}')} }catch(e){ return {...EXP_DEF} } }
+function readExpOpts(){
+  const o={}; Object.keys(EXP_DEF).forEach(k=>{ const el=document.getElementById('ex-'+k); o[k]=el?el.checked:EXP_DEF[k] });
+  if(!(o.nr||o.title||o.key||o.bpm||o.tun||o.dur)) o.title=true;   // minstens één kolom
+  try{ localStorage.setItem(EXP_KEY,JSON.stringify(o)) }catch(e){}
+  return o;
+}
+function fmtTotal(sec){ const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),x=sec%60; return h?`${h}:${String(m).padStart(2,'0')}:${String(x).padStart(2,'0')}`:`${m}:${String(x).padStart(2,'0')}` }
+
+// Model van het document: kolommen + rijen + totalen
+function exportModel(opts){
+  const its=setItems(S.setId);
+  const cols=[];
+  if(opts.nr)   cols.push({k:'nr',  label:'Nr.',      align:'right' });
+  if(opts.title)cols.push({k:'title',label:'Titel',   align:'left'  });
+  if(opts.key)  cols.push({k:'key', label:'Toonaard', align:'center'});
+  if(opts.bpm)  cols.push({k:'bpm', label:'BPM',      align:'center'});
+  if(opts.tun)  cols.push({k:'tun', label:'Stemming', align:'center'});
+  if(opts.dur)  cols.push({k:'dur', label:'Duur',     align:'center'});
+  const rows=[]; let n=0, songSec=0, breakSec=0;
+  its.forEach((it,idx)=>{
+    if(it.type==='song'){
+      const sg=getSong(it.songId); if(!sg) return; n++; songSec+=sg.dur||0;
+      const linked=isLinked(its,idx);
+      rows.push({t:'song',vals:{nr:String(n),title:sg.title,key:sg.key||'',bpm:sg.bpm?String(sg.bpm):'',tun:sg.tuning||'E',dur:fmtDur(sg.dur)},
+        hint:(!linked&&it.hint)?it.hint:'', note:it.note||''});
+      if(linked) rows.push({t:'link'});
+    } else if(it.type==='break'){ breakSec+=it.dur||0; rows.push({t:'break',text:it.text||'Pauze',dur:it.dur||0}) }
+    else if(it.type==='note'&&it.text){ rows.push({t:'note',text:it.text}) }
+  });
+  return {cols,rows,songSec,breakSec,total:songSec+breakSec,count:n};
+}
+
+// Zoek de grootste lettergrootte waarbij alles op één pagina past: we meten de echte hoogte
+function measureHeightPt(opts,f){
+  const d=document.createElement('div');
+  d.style.cssText=`position:absolute;left:-9999px;top:0;visibility:hidden;width:${EXP_PAGE_W}pt`;
+  d.innerHTML=buildExportBody(opts,f); document.body.appendChild(d);
+  const tooWide=d.scrollWidth>d.clientWidth+1;   // tabel breder dan de pagina telt als 'past niet'
+  const h=tooWide?Infinity:d.offsetHeight*0.75; d.remove(); return h;
+}
+function pickFont(opts){
+  if(!opts.fill) return 11;
+  let lo=9, hi=36;                    // grootste f (stappen van 0.5) die nog past
+  if(measureHeightPt(opts,lo)>EXP_TARGET_H) return lo;
+  while(hi-lo>0.5){ const mid=Math.round((lo+hi)/2*2)/2; if(measureHeightPt(opts,mid)<=EXP_TARGET_H) lo=mid; else hi=mid-0.5 }
+  return measureHeightPt(opts,hi)<=EXP_TARGET_H?hi:lo;
+}
+function logoSize(f,dim){
+  if(!S.logo||!dim) return {w:0,h:0};
+  const maxH=Math.min(4*f,90), maxW=EXP_PAGE_W*0.35;
+  const k=Math.min(maxH/dim.h,maxW/dim.w,10);
+  return {w:Math.round(dim.w*k*10)/10, h:Math.round(dim.h*k*10)/10};
+}
+
+function buildExportBody(opts,fixedF){
+  const band=getBand(S.bandId), sl=getSet(S.setId), m=exportModel(opts);
+  const dim=S.logo?{w:S.logo.w||300,h:S.logo.h||150}:null;
+  const f=fixedF||pickFont(opts);
+  const px=v=>(Math.round(v*100)/100)+'pt';
+  const cell=(txt,extra='',span=1)=>`<td${span>1?` colspan="${span}"`:''} style="border:1px solid #bbb;padding:${px(0.35*f)} ${px(0.6*f)};${extra}"><p style="margin:0;line-height:1.2">${txt}</p></td>`;
+  const N=m.cols.length;
+  const L=logoSize(f,dim);
+  const logo=S.logo?`<img src="${S.logo.src}" alt="" width="${Math.round(L.w*1.3333)}" height="${Math.round(L.h*1.3333)}" style="width:${px(L.w)};height:${px(L.h)}">`:'';
+
+  let h=`<div style="font-family:Arial,Helvetica,sans-serif;color:#111">`;
+  // Kop: met logo → logo + setlistnaam (geen bandnaam); zonder logo → bandnaam + setlistnaam
+  const head = logo
+    ? `<p style="margin:0;font-size:${px(1.2*f)};font-weight:bold;line-height:1.2">${esc(sl?.name||'')}</p>`
+    : `<p style="margin:0;font-size:${px(1.9*f)};font-weight:bold;line-height:1.2">${esc(band?.name||'')}</p><p style="margin:0;font-size:${px(0.9*f)};color:#555;line-height:1.2">${esc(sl?.name||'')}</p>`;
+  h+=`<table style="border-collapse:collapse;width:100%;margin-bottom:${px(0.4*f)}"><tr>
+    ${logo?`<td style="border:none;padding:0;text-align:left;vertical-align:middle">${logo}</td>`:''}
+    <td style="border:none;padding:0;vertical-align:middle;${logo?'text-align:right':''}">${head}</td></tr></table>`;
+  h+=`<table style="border-collapse:collapse;width:100%">`;
+  m.rows.forEach(r=>{
+    if(r.t==='song'){
+      h+=`<tr>`+m.cols.map(c=>{
+        const v=esc(r.vals[c.k]);
+        const st=`font-size:${px(f)};text-align:${c.align};`+(c.k==='title'?'font-weight:bold;':'white-space:nowrap;')+(c.k==='nr'?'color:#777;':'');
+        return cell(v,st);
+      }).join('')+`</tr>`;
+      if(opts.notes&&(r.hint||r.note)){
+        const t=[r.hint?`<em>${esc(r.hint)}</em>`:'',r.note?esc(r.note):''].filter(Boolean).join(' · ');
+        h+=`<tr>${cell(t,`font-size:${px(0.7*f)};color:#555;background:#fafafa`,N)}</tr>`;
+      }
+    } else if(r.t==='link'){
+      h+=`<tr><td colspan="${N}" style="border-left:1px solid #bbb;border-right:1px solid #bbb;border-top:none;border-bottom:none;padding:0;text-align:center"><p style="margin:0;line-height:1.2;font-size:${px(0.8*f)};font-weight:bold;color:#444">↓ direct door</p></td></tr>`;
+    } else if(r.t==='break'){
+      h+=`<tr>${cell(`— ${esc(r.text)}${r.dur?' ('+fmtDur(r.dur)+')':''} —`,`font-size:${px(0.9*f)};text-align:center;font-style:italic;color:#777;background:#f3f3f3`,N)}</tr>`;
+    } else {
+      h+=`<tr>${cell(esc(r.text),`font-size:${px(0.9*f)};font-style:italic;color:#555`,N)}</tr>`;
+    }
+  });
+  h+=`</table>`;
+  const extra=m.breakSec?` <span style="font-weight:normal;color:#666;font-size:${px(0.7*f)}">(muziek ${fmtTotal(m.songSec)} + pauzes ${fmtTotal(m.breakSec)})</span>`:'';
+  h+=`<p style="margin:${px(0.5*f)} 0 0;text-align:right;font-size:${px(f)};font-weight:bold;line-height:1.2">Totale duur: ${fmtTotal(m.total)}${extra}</p>`;
+  return h+`</div>`;
+}
+
+function updExport(){
+  const opts=readExpOpts();
+  const body=buildExportBody(opts);
+  window._expHtml=`<html><head><meta charset="UTF-8"></head><body>${body}</body></html>`;
+  const page=document.getElementById('exp-p'); if(page) page.innerHTML=body;
+  fitExportPreview();
+}
+function fitExportPreview(){
+  const wrap=document.querySelector('.exp-page-wrap'), page=document.getElementById('exp-p'); if(!wrap||!page) return;
+  const avail=wrap.clientWidth-20, need=EXP_PAGE_W*4/3;
+  page.style.zoom=Math.min(1,avail/need);
+}
+async function showExportModal(){
   if(!S.setId){toast('Geen setlist geselecteerd');return}
-  const sl=getSet(S.setId),band=getBand(S.bandId),its=setItems(S.setId);
-  let n=0;
-  const rows=its.map(it=>{
-    if(it.type==='song'){ const s=getSong(it.songId); if(!s)return ''; n++;
-      const tags=[s.key,s.bpm?s.bpm+' bpm':'',s.tuning||'E'].filter(Boolean).join(' · ');
-      return `<div class="exp-row"><span class="exp-n">${n}</span><span class="exp-s">${esc(s.title)}</span><span class="exp-t">${esc(tags)}</span></div>${it.hint?`<div class="exp-hint">💬 ${esc(it.hint)}</div>`:''}${it.note?`<div class="exp-hint">📝 ${esc(it.note)}</div>`:''}`;
-    } else if(it.type==='break'){
-      const durTxt=it.dur?` (${fmtDur(it.dur)})`:'';
-      return `<div class="exp-break">— ${esc(it.text||'Pauze')}${durTxt} —</div>`;
-    } else { return `<div class="exp-note-p">${esc(it.text)}</div>` }
-  }).join('');
-  window._expHtml=buildWordHtml(band,sl,its);
+  const o=loadExpOpts();
+  const chk=(k,label)=>`<label class="chk"><input type="checkbox" id="ex-${k}" ${o[k]?'checked':''} onchange="updExport()">${label}</label>`;
   showModal(`<div class="mh"><span class="mt">Exporteer naar Word</span><button class="btn-ghost" onclick="hideModal()">✕</button></div>
     <div class="mb">
-      <p style="font-size:13px;color:var(--text2)">Klik "Kopieer", plak dan in Word (Ctrl+V / Cmd+V).</p>
-      <div class="exp-wrap" id="exp-p"><div class="exp-head">${esc(band?.name||'')}</div><div class="exp-sub">${esc(sl?.name||'')} · ${new Date().toLocaleDateString('nl-BE',{day:'numeric',month:'long',year:'numeric'})}</div>${rows}</div>
+      <div class="fg"><label>Wat moet er op het document staan?</label>
+        <div class="chk-grid">${chk('nr','Nummer')}${chk('title','Titel')}${chk('key','Toonaard')}${chk('bpm','BPM')}${chk('tun','Stemming')}${chk('dur','Duur')}</div>
+      </div>
+      ${chk('notes','Bindtekst en notities')}
+      ${chk('fill','Vul een volledige pagina (groter lettertype)')}
+      <div class="exp-page-wrap"><div class="exp-page" id="exp-p"></div></div>
+      <p style="font-size:12.5px;color:var(--text2)">Klik "Kopieer" en plak dan in Word (Ctrl+V / Cmd+V). Het voorbeeld toont een A4-pagina.</p>
     </div>
     <div class="mf"><button class="btn" onclick="hideModal()">Sluiten</button><button class="btn btn-accent" onclick="doCopy()">📋 Kopieer naar klembord</button></div>`);
+  document.getElementById('modal').style.maxWidth='720px';
+  updExport();
 }
-function buildWordHtml(band,sl,its){
-  const date=new Date().toLocaleDateString('nl-BE',{day:'numeric',month:'long',year:'numeric'});
-  let n=0,rows='';
-  its.forEach(it=>{
-    if(it.type==='song'){ const s=getSong(it.songId); if(!s)return; n++;
-      rows+=`<tr><td style="text-align:right;color:#888;padding:5px 8px;border:1px solid #ddd;font-size:12px">${n}</td><td style="padding:5px 8px;border:1px solid #ddd;font-weight:bold">${esc(s.title)}</td><td style="text-align:center;padding:5px 8px;border:1px solid #ddd">${esc(s.key||'')}</td><td style="text-align:center;padding:5px 8px;border:1px solid #ddd">${s.bpm||''}</td><td style="text-align:center;padding:5px 8px;border:1px solid #ddd">${esc(s.tuning||'E')}</td><td style="text-align:center;padding:5px 8px;border:1px solid #ddd;color:#888">${fmtDur(s.dur)}</td></tr>`;
-      if(it.hint||it.note) rows+=`<tr><td style="border:1px solid #ddd"></td><td colspan="5" style="padding:3px 8px;border:1px solid #ddd;font-size:12px;color:#666">${it.hint?`<em>💬 ${esc(it.hint)}</em>`:''}${it.hint&&it.note?'<br>':''}${it.note?`📝 ${esc(it.note)}`:''}</td></tr>`;
-    } else if(it.type==='break'){
-      const durTxt=it.dur?` (${fmtDur(it.dur)})`:'';
-      rows+=`<tr><td colspan="6" style="text-align:center;padding:7px;border:1px solid #ddd;font-style:italic;color:#888;background:#f8f8f8">— ${esc(it.text||'Pauze')}${durTxt} —</td></tr>`;
-    } else if(it.type==='note'&&it.text){ rows+=`<tr><td colspan="6" style="padding:5px 8px;border:1px solid #ddd;font-style:italic;color:#555">${esc(it.text)}</td></tr>` }
-  });
-  return `<html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;margin:24px}h1{font-size:22px;margin-bottom:3px}h2{font-size:14px;font-weight:normal;color:#666;margin-bottom:18px}table{border-collapse:collapse;width:100%}th{background:#222;color:#fff;padding:7px 8px;text-align:left;font-size:12px;border:1px solid #ddd}</style></head><body><h1>${esc(band?.name||'')}</h1><h2>${esc(sl?.name||'')} · ${date}</h2><table><thead><tr><th>#</th><th>Nummer</th><th>Toonaard</th><th>BPM</th><th>Stemming</th><th>Duur</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
+function showLogoModal(){
+  showModal(`<div class="mh"><span class="mt">Bandlogo</span><button class="btn-ghost" onclick="hideModal()">✕</button></div>
+    <div class="mb">
+      <p style="font-size:13px;color:var(--text2)">Dit logo komt op elke setlist die je naar Word kopieert. Als er een logo is, staat de bandnaam niet meer op het document.</p>
+      <div class="logo-row big" id="logo-row"></div>
+    </div>
+    <div class="mf"><button class="btn" onclick="hideModal()">Sluiten</button></div>`);
+  renderLogoRow();
+}
+function renderLogoRow(){
+  const r=document.getElementById('logo-row'); if(!r) return;
+  r.innerHTML=(S.logo?`<img src="${S.logo.src}" alt="Logo">`:'<span style="font-size:12.5px;color:var(--text3)">Nog geen logo</span>')
+    +`<button class="btn btn-sm" onclick="document.getElementById('logo-file').click()">🖼 ${S.logo?'Ander logo kiezen':'Logo kiezen'}</button>`
+    +(S.logo?`<button class="btn btn-sm btn-danger" onclick="removeLogo()">Verwijderen</button>`:'')
+    +`<input type="file" id="logo-file" accept="image/*" style="display:none" onchange="onLogoFile(this)">`;
 }
 async function doCopy(){
   try{
@@ -757,16 +917,69 @@ async function doCopy(){
   }
 }
 
+// ── LOGO ──
+function loadImg(src){ return new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=src }) }
+async function processLogo(file){
+  const url=URL.createObjectURL(file);
+  try{
+    const img=await loadImg(url);
+    const nw=img.naturalWidth||300, nh=img.naturalHeight||150;
+    const k=Math.min(1,500/nw,250/nh), w=Math.max(1,Math.round(nw*k)), h=Math.max(1,Math.round(nh*k));
+    const c=document.createElement('canvas'); c.width=w; c.height=h;
+    c.getContext('2d').drawImage(img,0,0,w,h);
+    let src=c.toDataURL('image/png');
+    if(src.length>250000){   // te zwaar: jpeg op witte achtergrond
+      const c2=document.createElement('canvas'); c2.width=w; c2.height=h;
+      const x=c2.getContext('2d'); x.fillStyle='#fff'; x.fillRect(0,0,w,h); x.drawImage(img,0,0,w,h);
+      src=c2.toDataURL('image/jpeg',0.85);
+    }
+    return {src,w,h};
+  } finally { URL.revokeObjectURL(url) }
+}
+async function onLogoFile(input){
+  const f=input.files&&input.files[0]; if(!f) return;
+  try{
+    const logo=await processLogo(f);
+    S.logo=logo; setSyncStatus('syncing');
+    const ok=await fbPutLogo(logo); setSyncStatus(ok?'ok':'err');
+    toast(ok?'Logo opgeslagen':'Logo kon niet worden opgeslagen');
+  }catch(e){ toast('Dit bestand kon niet als afbeelding gelezen worden') }
+  renderLogoRow();
+}
+async function removeLogo(){
+  S.logo=null; setSyncStatus('syncing'); const ok=await fbPutLogo(null); setSyncStatus(ok?'ok':'err');
+  renderLogoRow();
+}
+
 // ── FIREBASE SYNC (per band: /bands/<slug>) ──
 async function fbSave(data){
   const token=await getToken(); if(!token||!SESSION) return false;
   try{
+    // PATCH: vervangt enkel deze velden en laat het logo ongemoeid
     const r = await fetch(`${FB_URL}/bands/${SESSION.slug}.json?auth=${encodeURIComponent(token)}`,{
-      method:'PUT', body:JSON.stringify(data), headers:{'Content-Type':'application/json'}
+      method:'PATCH', body:JSON.stringify(data), headers:{'Content-Type':'application/json'}
     });
     if(!r.ok){ console.warn('Firebase save error',r.status); return false }
     return true;
   }catch(e){ console.warn('Firebase save failed',e); return false }
+}
+async function fbPutLogo(logo){   // logo = {src,w,h} of null om te verwijderen
+  const token=await getToken(); if(!token||!SESSION) return false;
+  try{
+    const r = await fetch(`${FB_URL}/bands/${SESSION.slug}/logo.json?auth=${encodeURIComponent(token)}`,{
+      method:'PUT', body:JSON.stringify(logo), headers:{'Content-Type':'application/json'}
+    });
+    return r.ok;
+  }catch(e){ return false }
+}
+// Voor de automatische verversing: enkel de lijsten, niet het (zwaardere) logo
+async function fbLoadData(){
+  const token=await getToken(); if(!token||!SESSION) return false;
+  try{
+    const g=k=>fetch(`${FB_URL}/bands/${SESSION.slug}/${k}.json?auth=${encodeURIComponent(token)}`).then(r=>r.ok?r.json():Promise.reject());
+    const [songs,setlists,items]=await Promise.all([g('songs'),g('setlists'),g('items')]);
+    return {songs,setlists,items};
+  }catch(e){ return false }
 }
 
 // false = fout (bv. offline), null = band bestaat nog niet, anders de data
@@ -794,7 +1007,7 @@ function toast(msg){ const el=document.getElementById('toast'); el.textContent=m
 // ── DEMO ──
 // ── EVENTS ──
 document.getElementById('band-sel').addEventListener('change',e=>{ S.bandId=e.target.value||null; S.setId=bandSets(S.bandId)[0]?.id||null; save(); render() });
-document.getElementById('btn-band-mgr').addEventListener('click',showBandModal);
+document.getElementById('btn-logo').addEventListener('click',showLogoModal);
 document.getElementById('set-sel').addEventListener('change',e=>{ S.setId=e.target.value||null; save(); render() });
 document.getElementById('btn-set-add').addEventListener('click',()=>{ if(!S.bandId){toast('Kies eerst een band');return} showNewSetModal() });
 document.getElementById('btn-set-dup').addEventListener('click',()=>{ if(!S.setId){toast('Geen setlist geselecteerd');return} dupSet(S.setId) });
@@ -805,6 +1018,7 @@ document.getElementById('btn-add-note').addEventListener('click',addNote);
 document.getElementById('btn-new-song').addEventListener('click',()=>{ if(!S.bandId){toast('Kies eerst een band');return} showSongModal(null) });
 document.getElementById('filt-avail').addEventListener('click',()=>setFilter('avail'));
 document.getElementById('filt-all').addEventListener('click',()=>setFilter('all'));
+document.getElementById('btn-bulk-songs').addEventListener('click',showBulkModal);
 document.getElementById('btn-export').addEventListener('click',showExportModal);
 document.getElementById('overlay').addEventListener('click',e=>{ if(e.target===e.currentTarget)hideModal() });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape')hideModal() });
@@ -867,6 +1081,7 @@ const toArr = v => Array.isArray(v) ? v.filter(Boolean) : (v ? Object.values(v) 
 function applyBand(d){
   S.bands=[{id:d.id,name:d.name}];
   S.songs=toArr(d.songs); S.setlists=toArr(d.setlists); S.items=toArr(d.items);
+  S.logo=d.logo&&d.logo.src?d.logo:null;
   S.bandId=d.id;
   if(!S.setId||!getSet(S.setId)) S.setId=bandSets(S.bandId)[0]?.id||null;
 }
@@ -904,7 +1119,11 @@ document.getElementById('btn-logout').addEventListener('click', logout);
 // Elke 30 seconden wijzigingen van andere apparaten ophalen
 setInterval(async()=>{
   if(!SESSION) return;
-  const remote = await fbLoad();
-  if(remote){ applyBand(remote); render(); setSyncStatus('ok') }
+  const remote = await fbLoadData();
+  if(remote){
+    S.songs=toArr(remote.songs); S.setlists=toArr(remote.setlists); S.items=toArr(remote.items);
+    if(!S.setId||!getSet(S.setId)) S.setId=bandSets(S.bandId)[0]?.id||null;
+    render(); setSyncStatus('ok');
+  }
 }, 30000);
 </script>
