@@ -1,3 +1,5 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Setlist Builder</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&display=swap">
@@ -231,7 +233,9 @@ textarea{resize:vertical;min-height:72px}
   .drag-h{display:flex;opacity:.6;font-size:26px;padding:12px 10px;touch-action:none;cursor:grab}
   .sort-btns{display:none}
   select{min-width:100px;max-width:145px}
-  .header{padding:0 10px;gap:6px}
+  .header{padding:0 10px;gap:6px;overflow-x:auto;scrollbar-width:none}
+  .header::-webkit-scrollbar{display:none}
+  .header>*{flex-shrink:0}
 }
 @media(min-width:621px){.lib-panel{display:flex!important}}
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--text3)}
@@ -258,7 +262,7 @@ textarea{resize:vertical;min-height:72px}
     <div class="hd"></div>
     <div class="hg">
       <select id="band-sel"></select>
-      <button class="btn-icon" id="btn-logo" title="Bandlogo">🖼</button>
+      <button class="btn btn-sm" id="btn-logo" title="Bandlogo toevoegen of wijzigen">🖼 Logo</button>
     </div>
     <div class="hd"></div>
     <div class="hg">
